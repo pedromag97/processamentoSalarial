@@ -1,0 +1,25 @@
+# Ambiente
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+
+# Dados (nunca no Git: dados pessoais dos trabalhadores)
+*.db
+*.db-journal
+*.sqlite
+dados_dev/
+backups/
+saidas/
+*.xlsx
+*.xlsm
+*.xls
+*.pdf
+!tests/fixtures/*.xlsx
+
+# Empacotamento
+build/
+dist/
+*.spec
