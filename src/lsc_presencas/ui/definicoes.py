@@ -37,15 +37,11 @@ def empresas(sessao: Session):
 
 
 def clientes(sessao: Session):
-    return list(
-        sessao.execute(select(Cliente.id, Cliente.codigo).order_by(Cliente.codigo)).all()
-    )
+    return list(sessao.execute(select(Cliente.id, Cliente.codigo).order_by(Cliente.codigo)).all())
 
 
 def viaturas(sessao: Session):
-    return list(
-        sessao.execute(select(Viatura.id, Viatura.codigo).order_by(Viatura.codigo)).all()
-    )
+    return list(sessao.execute(select(Viatura.id, Viatura.codigo).order_by(Viatura.codigo)).all())
 
 
 def zonas(sessao: Session):

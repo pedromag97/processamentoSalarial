@@ -1,0 +1,444 @@
+"""Dashboard de presenças: grelha mensal/semanal com edição rápida por teclado.
+
+A grelha é feita de três tabelas lado a lado sobre o mesmo modelo: as colunas fixas à esquerda,
+os dias ao centro (a única parte editável, com deslocamento horizontal) e os totais à direita.
+Por baixo há um rodapé igual, com as pessoas presentes por dia.
+"""
+
+from calendar import monthrange
+from datetime import date, timedelta
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont, QKeySequence
+from PySide6.QtWidgets import (
+    QAbstractItemDelegate,
+    QAbstractItemView,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QStyle,
+    QStyledItemDelegate,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from ..modelos import CodigoPresenca
+from ..presencas import semana_de
+from . import definicoes as d
+from .grelha import (
+    MESES,
+    N_DIR,
+    N_ESQ,
+    PAPEL_HORAS,
+    TRABALHADOR,
+    Filtros,
+    ModeloGrelha,
+    ModeloTotaisDia,
+)
+
+LARGURAS_ESQ = [44, 210, 64, 70]
+LARGURA_DIA_MES = 36
+LARGURA_DIA_SEMANA = 96
+LARGURAS_DIR = [38, 38, 38, 38, 38, 38, 58]
+ALTURA_LINHA = 24
+MAX_LINHAS_RODAPE = 6
+
+MENSAL = "mensal"
+SEMANAL = "semanal"
+
+
+class DelegadoDia(QStyledItemDelegate):
+    """Desenha o código ao centro e, se houver, as horas extra em pequeno no canto."""
+
+    def paint(self, pintor, opcao, indice):
+        super().paint(pintor, opcao, indice)
+        horas = indice.data(PAPEL_HORAS)
+        if horas:
+            pintor.save()
+            letra = QFont(opcao.font)
+            letra.setPointSizeF(max(letra.pointSizeF() - 2.5, 6))
+            letra.setBold(True)
+            pintor.setFont(letra)
+            pintor.setPen(QColor("#9C0006"))
+            pintor.drawText(
+                opcao.rect.adjusted(0, 0, -2, 0),
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+                f"+{horas}",
+            )
+            pintor.restore()
+
+
+class VistaDias(QTableView):
+    """Tabela dos dias: escrever o código, Enter desce, copiar/colar, Delete e Ctrl+Z."""
+
+    def a_editar(self) -> bool:
+        return self.state() == QAbstractItemView.State.EditingState
+
+    def keyPressEvent(self, evento):
+        modelo = self.model()
+        if evento.matches(QKeySequence.StandardKey.Copy):
+            self.copiar()
+        elif evento.matches(QKeySequence.StandardKey.Paste):
+            self.colar()
+        elif evento.matches(QKeySequence.StandardKey.Undo):
+            modelo.desfazer()
+        elif evento.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace) and not self.a_editar():
+            modelo.aplicar_texto(self.selectedIndexes(), "")
+        elif evento.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not self.a_editar():
+            self.descer()
+        else:
+            super().keyPressEvent(evento)
+
+    def commitData(self, editor):
+        # Com várias células selecionadas, o que se escreve aplica-se a todas.
+        selecionadas = self.selectedIndexes()
+        if len(selecionadas) > 1 and isinstance(editor, QLineEdit):
+            self.model().aplicar_texto(selecionadas, editor.text())
+        else:
+            super().commitData(editor)
+
+    def closeEditor(self, editor, dica):
+        super().closeEditor(editor, dica)
+        if dica == QAbstractItemDelegate.EndEditHint.SubmitModelCache:
+            self.descer()
+
+    def descer(self) -> None:
+        """Passa para a linha de trabalhador seguinte, na mesma coluna."""
+        atual = self.currentIndex()
+        if not atual.isValid():
+            return
+        seguintes = self.model().linhas_de_trabalhadores(atual.row() + 1)
+        if seguintes:
+            self.setCurrentIndex(self.model().index(seguintes[0], atual.column()))
+
+    def copiar(self) -> None:
+        QApplication.clipboard().setText(self.model().texto_para_copiar(self.selectedIndexes()))
+
+    def colar(self) -> None:
+        texto = QApplication.clipboard().text().replace("\r", "")
+        if not texto:
+            return
+        matriz = [linha.split("\t") for linha in texto.rstrip("\n").split("\n")]
+        selecionadas = self.selectedIndexes()
+        if len(matriz) == 1 and len(matriz[0]) == 1 and len(selecionadas) > 1:
+            self.model().aplicar_texto(selecionadas, matriz[0][0])  # preencher a seleção
+            return
+        if selecionadas:
+            inicio = min(selecionadas, key=lambda i: (i.row(), i.column()))
+        else:
+            inicio = self.currentIndex()
+        self.model().colar(inicio, matriz)
+
+
+class Trio(QWidget):
+    """Três tabelas sobre o mesmo modelo: colunas fixas, dias e totais."""
+
+    def __init__(self, modelo, centro: QTableView | None = None, *, cabecalho=True, parent=None):
+        super().__init__(parent)
+        self.modelo = modelo
+        self.esq = QTableView()
+        self.centro = centro or QTableView()
+        self.dir = QTableView()
+        self.largura_dia = LARGURA_DIA_MES
+
+        disposicao = QHBoxLayout(self)
+        disposicao.setContentsMargins(0, 0, 0, 0)
+        disposicao.setSpacing(0)
+        barra = self.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent)
+        sempre, nunca = Qt.ScrollBarPolicy.ScrollBarAlwaysOn, Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        for vista in (self.esq, self.centro, self.dir):
+            vista.setModel(modelo)
+            vista.verticalHeader().setVisible(False)
+            vista.verticalHeader().setDefaultSectionSize(ALTURA_LINHA)
+            vista.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+            vista.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+            vista.horizontalHeader().setVisible(cabecalho)
+            vista.horizontalHeader().setFixedHeight(40)
+            vista.horizontalHeader().setHighlightSections(False)
+            vista.setHorizontalScrollBarPolicy(sempre if cabecalho else nunca)
+            vista.setVerticalScrollBarPolicy(sempre if vista is self.dir else nunca)
+            vista.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+            if vista is not self.centro or centro is None:
+                vista.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+                vista.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+                vista.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            disposicao.addWidget(vista, 1 if vista is self.centro else 0)
+        self.esq.setFixedWidth(sum(LARGURAS_ESQ) + 4)
+        self.dir.setFixedWidth(sum(LARGURAS_DIR) + 4 + barra)
+
+        barras = [v.verticalScrollBar() for v in (self.esq, self.centro, self.dir)]
+        for origem in barras:
+            for destino in barras:
+                if origem is not destino:
+                    origem.valueChanged.connect(destino.setValue)
+
+        modelo.modelReset.connect(self.ajustar)
+        self.ajustar()
+
+    def ajustar(self) -> None:
+        """Mostra em cada tabela só as suas colunas e fixa as larguras."""
+        total = self.modelo.columnCount()
+        n_dias = total - N_ESQ - N_DIR
+        for coluna in range(total):
+            e_esq = coluna < N_ESQ
+            e_dir = coluna >= N_ESQ + n_dias
+            self.esq.setColumnHidden(coluna, not e_esq)
+            self.centro.setColumnHidden(coluna, e_esq or e_dir)
+            self.dir.setColumnHidden(coluna, not e_dir)
+            if e_esq:
+                self.esq.setColumnWidth(coluna, LARGURAS_ESQ[coluna])
+            elif e_dir:
+                self.dir.setColumnWidth(coluna, LARGURAS_DIR[coluna - N_ESQ - n_dias])
+            else:
+                self.centro.setColumnWidth(coluna, self.largura_dia)
+
+
+class EcraPresencas(QWidget):
+    def __init__(self, sessao: Session, parent=None):
+        super().__init__(parent)
+        self.sessao = sessao
+        self.referencia = date.today()
+        self.vista_periodo = MENSAL
+
+        self.modelo = ModeloGrelha(sessao, self)
+        self.totais = ModeloTotaisDia(self.modelo, self)
+        self.dias = VistaDias()
+        self.dias.setItemDelegate(DelegadoDia(self.dias))
+        self.dias.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.dias.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.AnyKeyPressed
+        )
+        self.grelha = Trio(self.modelo, self.dias)
+        self.rodape = Trio(self.totais, cabecalho=False)
+        self.grelha.centro.horizontalScrollBar().valueChanged.connect(
+            self.rodape.centro.horizontalScrollBar().setValue
+        )
+        self.grelha.esq.clicked.connect(lambda indice: self.modelo.alternar_grupo(indice.row()))
+
+        # --- Barra de período e filtros ---
+        self.botao_anterior = QPushButton("◀")
+        self.botao_seguinte = QPushButton("▶")
+        self.botao_hoje = QPushButton("Hoje")
+        for botao in (self.botao_anterior, self.botao_seguinte):
+            botao.setFixedWidth(32)
+        self.titulo = QLabel()
+        self.titulo.setMinimumWidth(250)
+        letra = self.titulo.font()
+        letra.setBold(True)
+        letra.setPointSize(letra.pointSize() + 2)
+        self.titulo.setFont(letra)
+        self.escolha_vista = QComboBox()
+        self.escolha_vista.addItem("Vista mensal", MENSAL)
+        self.escolha_vista.addItem("Vista semanal", SEMANAL)
+
+        self.filtro_empresa = QComboBox()
+        self.filtro_cliente = QComboBox()
+        self.filtro_viatura = QComboBox()
+        self.filtro_zona = QComboBox()
+        self.mostrar_inativos = QCheckBox("Inativos")
+        self.pesquisa = QLineEdit()
+        self.pesquisa.setPlaceholderText("Pesquisar por nome…")
+        self.pesquisa.setClearButtonEnabled(True)
+
+        barra = QHBoxLayout()
+        for w in (self.botao_anterior, self.titulo, self.botao_seguinte, self.botao_hoje):
+            barra.addWidget(w)
+        barra.addWidget(self.escolha_vista)
+        barra.addSpacing(12)
+        for w in (self.filtro_empresa, self.filtro_cliente, self.filtro_viatura, self.filtro_zona):
+            barra.addWidget(w)
+        barra.addWidget(self.mostrar_inativos)
+        barra.addWidget(self.pesquisa, 1)
+
+        # --- Barra de códigos e ações ---
+        self.barra_codigos = QHBoxLayout()
+        self.botoes_codigo: dict[str, QPushButton] = {}
+        self.botao_copiar_semana = QPushButton("Copiar semana anterior")
+        self.botao_desfazer = QPushButton("Desfazer (Ctrl+Z)")
+        acoes = QHBoxLayout()
+        acoes.addWidget(QLabel("Aplicar à seleção:"))
+        acoes.addLayout(self.barra_codigos)
+        acoes.addStretch(1)
+        acoes.addWidget(self.botao_copiar_semana)
+        acoes.addWidget(self.botao_desfazer)
+
+        self.estado = QLabel()
+        self.estado.setMinimumHeight(18)
+
+        disposicao = QVBoxLayout(self)
+        disposicao.addLayout(barra)
+        disposicao.addLayout(acoes)
+        disposicao.addWidget(self.grelha, 1)
+        disposicao.addWidget(self.rodape)
+        disposicao.addWidget(self.estado)
+
+        # --- Ligações ---
+        self.botao_anterior.clicked.connect(lambda: self.avancar(-1))
+        self.botao_seguinte.clicked.connect(lambda: self.avancar(1))
+        self.botao_hoje.clicked.connect(lambda: self.ir_para(date.today()))
+        self.escolha_vista.currentIndexChanged.connect(self._mudou_vista)
+        for caixa in (
+            self.filtro_empresa,
+            self.filtro_cliente,
+            self.filtro_viatura,
+            self.filtro_zona,
+        ):
+            caixa.currentIndexChanged.connect(self._aplicar)
+        self.mostrar_inativos.toggled.connect(self._aplicar)
+        self.pesquisa.textChanged.connect(self._aplicar)
+        self.botao_copiar_semana.clicked.connect(self.copiar_semana_anterior)
+        self.botao_desfazer.clicked.connect(self.modelo.desfazer)
+        self.modelo.erro.connect(self._mostrar_erro)
+        self.modelo.alterado.connect(self._depois_de_alterar)
+        self.totais.modelReset.connect(self._ajustar_rodape)
+
+        self.recarregar()
+
+    # --- Período ---
+
+    def periodo(self) -> tuple[date, date]:
+        if self.vista_periodo == SEMANAL:
+            return semana_de(self.referencia)
+        ano, mes = self.referencia.year, self.referencia.month
+        return date(ano, mes, 1), date(ano, mes, monthrange(ano, mes)[1])
+
+    def _titulo(self) -> str:
+        inicio, fim = self.periodo()
+        if self.vista_periodo == SEMANAL:
+            semana = inicio.isocalendar().week
+            return f"Semana {semana} — {inicio:%d/%m/%Y} a {fim:%d/%m/%Y}"
+        return f"{MESES[inicio.month - 1]} {inicio.year}"
+
+    def ir_para(self, dia: date) -> None:
+        self.referencia = dia
+        self._aplicar()
+
+    def avancar(self, passo: int) -> None:
+        if self.vista_periodo == SEMANAL:
+            self.ir_para(self.referencia + timedelta(days=7 * passo))
+        else:
+            meses = self.referencia.year * 12 + self.referencia.month - 1 + passo
+            self.ir_para(date(meses // 12, meses % 12 + 1, 1))
+
+    def definir_vista(self, vista: str) -> None:
+        self.escolha_vista.setCurrentIndex(self.escolha_vista.findData(vista))
+
+    def _mudou_vista(self) -> None:
+        self.vista_periodo = self.escolha_vista.currentData()
+        self._aplicar()
+
+    # --- Carregamento ---
+
+    def recarregar(self) -> None:
+        """Volta a ler tudo da base de dados (listas dos filtros, códigos e marcações)."""
+        caixas = (
+            (self.filtro_empresa, "Todas as empresas", d.empresas),
+            (self.filtro_cliente, "Todos os clientes", d.clientes),
+            (self.filtro_viatura, "Todas as viaturas", d.viaturas),
+            (self.filtro_zona, "Todas as zonas", d.zonas),
+        )
+        for caixa, todos, opcoes in caixas:
+            atual = caixa.currentData()
+            caixa.blockSignals(True)
+            caixa.clear()
+            caixa.addItem(todos, None)
+            for valor, rotulo in opcoes(self.sessao):
+                caixa.addItem(rotulo, valor)
+            caixa.setCurrentIndex(max(caixa.findData(atual), 0))
+            caixa.blockSignals(False)
+        self._montar_botoes_de_codigo()
+        self._aplicar()
+
+    def _montar_botoes_de_codigo(self) -> None:
+        while self.barra_codigos.count():
+            antigo = self.barra_codigos.takeAt(0).widget()
+            antigo.hide()  # o deleteLater só acontece mais tarde; sem isto ficavam sobrepostos
+            antigo.deleteLater()
+        self.botoes_codigo = {}
+        codigos = self.sessao.execute(
+            select(CodigoPresenca.codigo, CodigoPresenca.descricao, CodigoPresenca.cor)
+            .where(CodigoPresenca.ativo)
+            .order_by(CodigoPresenca.ordem, CodigoPresenca.codigo)
+        )
+        for codigo, descricao, cor in [*codigos, ("", "Limpar as células selecionadas", "#FFFFFF")]:
+            botao = QPushButton(codigo or "Limpar")
+            botao.setToolTip(descricao)
+            botao.setStyleSheet(
+                f"background:{cor}; border:1px solid #999; padding:3px 8px; min-width:22px;"
+            )
+            botao.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            botao.clicked.connect(lambda _=False, c=codigo: self.aplicar_codigo(c))
+            self.barra_codigos.addWidget(botao)
+            self.botoes_codigo[codigo] = botao
+
+    def filtros(self) -> Filtros:
+        return Filtros(
+            empresa_id=self.filtro_empresa.currentData(),
+            cliente_id=self.filtro_cliente.currentData(),
+            viatura_id=self.filtro_viatura.currentData(),
+            zona_id=self.filtro_zona.currentData(),
+            mostrar_inativos=self.mostrar_inativos.isChecked(),
+            texto=self.pesquisa.text(),
+        )
+
+    def _aplicar(self, *_args) -> None:
+        largura = LARGURA_DIA_SEMANA if self.vista_periodo == SEMANAL else LARGURA_DIA_MES
+        self.grelha.largura_dia = self.rodape.largura_dia = largura
+        self.titulo.setText(self._titulo())
+        self.modelo.configurar(*self.periodo(), self.filtros())
+
+    def _ajustar_rodape(self) -> None:
+        linhas = min(self.totais.rowCount(), MAX_LINHAS_RODAPE)
+        self.rodape.setFixedHeight(linhas * ALTURA_LINHA + 4)
+
+    # --- Ações ---
+
+    def aplicar_codigo(self, codigo: str) -> None:
+        selecionadas = self.dias.selectedIndexes()
+        if not selecionadas:
+            self._mostrar_erro("Selecione primeiro as células.")
+            return
+        self.modelo.aplicar_texto(selecionadas, codigo)
+
+    def copiar_semana_anterior(self) -> None:
+        celula = self.modelo.celula(self.dias.currentIndex())
+        if celula is not None:
+            dia = celula[1]
+        elif self.vista_periodo == SEMANAL:
+            dia = self.periodo()[0]
+        else:
+            self._mostrar_erro("Selecione primeiro uma célula da semana de destino.")
+            return
+        copiadas = self.modelo.copiar_semana_anterior(dia)
+        if copiadas:
+            segunda, domingo = semana_de(dia)
+            self.estado.setText(
+                f"Copiei {copiadas} marcações para a semana de {segunda:%d/%m} a {domingo:%d/%m}. "
+                "Ctrl+Z desfaz."
+            )
+
+    def _mostrar_erro(self, mensagem: str) -> None:
+        self.estado.setStyleSheet("color:#B00020;")
+        self.estado.setText(mensagem)
+
+    def _depois_de_alterar(self) -> None:
+        self.estado.setStyleSheet("")
+        self.estado.setText("")
+        self.botao_desfazer.setEnabled(self.modelo.pode_desfazer())
+
+    def linha_do_trabalhador(self, numero: int) -> int:
+        """Linha da grelha de um trabalhador (pelo nº interno); -1 se não estiver visível."""
+        for n, linha in enumerate(self.modelo.linhas):
+            if linha.tipo == TRABALHADOR and linha.trab.numero == numero:
+                return n
+        return -1

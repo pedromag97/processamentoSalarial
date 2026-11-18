@@ -16,6 +16,8 @@ pré-processamento (PDF por trabalhador e Excel-resumo por empresa) para o conta
 4. Ler o `PROGRESSO.md` e dizer ao Pedro, em 3 linhas, onde ficámos e qual é o próximo passo.
 
 Num PC novo basta `.\setup.ps1` (faz os passos 2 e 3 e carrega os dados de demonstração).
+Se o PowerShell recusar scripts (`running scripts is disabled`), usar `setup.cmd` e `abrir.cmd`;
+dentro do Claude Code, as variáveis do `ambiente.ps1` podem ser definidas à mão no comando.
 
 ## Ritual de fim de sessão
 
@@ -75,6 +77,7 @@ src/lsc_presencas/
   consultas.py    vigências (parâmetros e salário em vigor num dia)
   calculo.py      cálculo do mês de um trabalhador; puro, sem base de dados nem interface
   preprocessamento.py  lê a base de dados e chama o calculo.py
+  presencas.py    marcações: interpretar células, gravar com auditoria, meses fechados
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -82,6 +85,8 @@ src/lsc_presencas/
     tabela.py       tabela editável e formulário genéricos (Coluna, ModeloTabela, VistaTabela)
     definicoes.py   colunas de cada tabela: é aqui que se acrescenta um campo aos ecrãs
     ecra_tabelas.py, ecra_trabalhadores.py
+    grelha.py       modelos da grelha de presenças e do rodapé de totais por dia
+    ecra_presencas.py  dashboard: três tabelas sincronizadas, teclado, filtros
     formatos.py     texto <-> números e datas (vírgula decimal, dd/mm/aaaa)
 scripts/          ambiente.ps1, seed_demo.py
 tests/
@@ -109,6 +114,13 @@ tests/
 - **Interface:** uma única sessão SQLAlchemy para toda a janela (`expire_on_commit=True`). Os
   erros aparecem numa linha por baixo da tabela, não em caixas modais (também para os testes
   correrem em `offscreen`). Os ecrãs testam-se pelo modelo (`setData`), sem simular cliques.
+- **Marcações:** só se alteram por `presencas.aplicar_alteracoes()`, que grava em lote (tudo ou
+  nada), recusa meses fechados e escreve a auditoria. A grelha nunca mexe em `Marcacao` diretamente.
+- **Grelha:** não usa objetos do modelo (lê só colunas, com duas consultas) para abrir depressa.
+  São três `QTableView` sobre o mesmo modelo (fixas, dias, totais) mais um rodapé igual.
+  Cada ação (colar, aplicar, copiar semana) é um só passo de Ctrl+Z.
+- **Scripts:** há `.ps1` e `.cmd` equivalentes (`setup`, `ambiente`, e `abrir.cmd`), porque um
+  dos PCs bloqueia a execução de scripts PowerShell. Não se altera a política de execução.
 - **Dados base** (códigos, feriados) são carregados por `carregar_dados_base()`, que só
   acrescenta o que falta e nunca repõe o que o utilizador editou.
 - Migrações com `render_as_batch=True` (SQLite) e um teste que falha se o modelo mudar sem

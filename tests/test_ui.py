@@ -334,7 +334,8 @@ def test_navegacao_da_janela_principal(app, fabrica):
         sessao.commit()
     janela = JanelaPrincipal(fabrica)
     nomes = [janela.navegacao.item(n).text() for n in range(janela.navegacao.count())]
-    assert nomes == ["Início", "Trabalhadores", "Tabelas"]
+    assert nomes == ["Presenças", "Trabalhadores", "Tabelas", "Base de dados"]
+    assert janela.pilha.currentWidget() is janela.ecras["Presenças"]
     ecra = janela.mostrar("Trabalhadores")
     assert janela.pilha.currentWidget() is ecra
     assert ecra.modelo.rowCount() == 24

@@ -2,15 +2,15 @@
 
 ## Marco atual
 
-**Marco 3 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 4.
+**Marco 4 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 5.
 
 O cálculo (marco 2) foi feito com pressupostos (lista abaixo) que o Pedro mandou assumir; falta
 confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Marco 4: dashboard de presenças (grelha mensal e semanal, edição por teclado, colar intervalos,
-filtros, totais e desfazer).
+Marco 5: assistente de importação da folha `s-27` (com o Excel fictício em `tests/fixtures/`),
+depois de o Pedro responder às dúvidas "Para o marco 5" mais abaixo.
 
 ## Checklist
 
@@ -42,6 +42,17 @@ filtros, totais e desfazer).
 - [x] Trabalhadores: lista com pesquisa e filtro de inativos; ficha com dados, valores de
       exceção e histórico do salário base
 - [ ] Ficha: histórico de alterações (fica para o marco 7, com a auditoria)
+
+### Marco 4 — dashboard de presenças
+- [x] `presencas.py`: interpretar `P+2`, gravar em lote com auditoria, bloquear meses fechados
+- [x] Grelha agrupada por Empresa → Cliente (grupos recolhíveis), vista mensal e semanal
+- [x] Colunas fixas à esquerda, totais à direita, rodapé com presentes por dia e por cliente
+- [x] Teclado: escrever o código, Enter desce, Delete limpa, Ctrl+C / Ctrl+V / Ctrl+Z
+- [x] Aplicar um código à seleção (a escrever ou pelos botões), copiar semana anterior
+- [x] Filtros por empresa, cliente, viatura, zona, inativos e pesquisa por nome
+- [x] Teste de desempenho: 104 trabalhadores × 31 dias em menos de 1 s
+- [x] `abrir.cmd` e `setup.cmd`, para PCs onde o PowerShell bloqueia scripts `.ps1`
+- [ ] Por verificar à mão pelo Pedro: "marcar um mês para 70 trabalhadores em menos de 10 min"
 
 ### Marcos seguintes
 - [ ] 4 — Dashboard de presenças
