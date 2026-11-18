@@ -78,6 +78,7 @@ src/lsc_presencas/
   calculo.py      cálculo do mês de um trabalhador; puro, sem base de dados nem interface
   preprocessamento.py  lê a base de dados e chama o calculo.py
   presencas.py    marcações: interpretar células, gravar com auditoria, meses fechados
+  importacao.py   importação única da s-27: ler, planear (duplicados) e gravar, com relatório
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -119,6 +120,11 @@ tests/
 - **Grelha:** não usa objetos do modelo (lê só colunas, com duas consultas) para abrir depressa.
   São três `QTableView` sobre o mesmo modelo (fixas, dias, totais) mais um rodapé igual.
   Cada ação (colar, aplicar, copiar semana) é um só passo de Ctrl+Z.
+- **Importação:** o assistente não grava nada até ao botão "Importar"; a gravação é tudo ou
+  nada. Quem já existe com o mesmo nome não é criado outra vez. Os testes usam só
+  `tests/fixtures/s27_ficticio.xlsx` (gerado por `gerar_s27_ficticio.py`); nunca o Excel real.
+- **Abrir a app:** `abrir.cmd` usa `pythonw` (sem consola). Um erro de arranque fica em
+  `erro.log` na pasta da app.
 - **Scripts:** há `.ps1` e `.cmd` equivalentes (`setup`, `ambiente`, e `abrir.cmd`), porque um
   dos PCs bloqueia a execução de scripts PowerShell. Não se altera a política de execução.
 - **Dados base** (códigos, feriados) são carregados por `carregar_dados_base()`, que só

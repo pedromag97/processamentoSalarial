@@ -9,7 +9,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QMainWindow,
+    QPushButton,
     QStackedWidget,
+    QVBoxLayout,
     QWidget,
 )
 from sqlalchemy import func, select
@@ -17,6 +19,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .. import __version__, config
 from ..modelos import CodigoPresenca, Empresa, Feriado, Marcacao, Trabalhador
+from .ecra_importacao import AssistenteImportacao
 from .ecra_presencas import EcraPresencas
 from .ecra_tabelas import EcraTabelas
 from .ecra_trabalhadores import EcraTrabalhadores
@@ -35,17 +38,31 @@ def resumo_bd(sessao: Session) -> dict[str, int]:
     }
 
 
-class EcraInicio(QLabel):
+class EcraInicio(QWidget):
+    """Estado da base de dados e a importação inicial da folha de ponto."""
+
     def __init__(self, sessao: Session, parent=None):
         super().__init__(parent)
         self.sessao = sessao
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.texto = QLabel()
+        self.texto.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.texto.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.botao_importar = QPushButton("Importar a folha de ponto (s-27)…")
+        self.botao_importar.clicked.connect(self.importar)
+        disposicao = QVBoxLayout(self)
+        disposicao.addStretch(1)
+        disposicao.addWidget(self.texto)
+        disposicao.addWidget(self.botao_importar, 0, Qt.AlignmentFlag.AlignCenter)
+        disposicao.addStretch(1)
         self.recarregar()
 
     def recarregar(self) -> None:
         linhas = [f"{nome}: {total}" for nome, total in resumo_bd(self.sessao).items()]
-        self.setText("\n".join(["LSC Presenças", "", *linhas, "", str(config.caminho_bd())]))
+        self.texto.setText("\n".join(["LSC Presenças", "", *linhas, "", str(config.caminho_bd())]))
+
+    def importar(self) -> None:
+        AssistenteImportacao(self.sessao, self).exec()
+        self.recarregar()
 
 
 class JanelaPrincipal(QMainWindow):

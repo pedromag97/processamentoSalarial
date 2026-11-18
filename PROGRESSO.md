@@ -2,15 +2,18 @@
 
 ## Marco atual
 
-**Marco 4 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 5.
+**Marco 5 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 6.
+
+A importação real ainda **não foi feita**: só se ensaiou a leitura do Excel real (sem gravar).
+Fica para o Pedro a fazer no PC do escritório, pelo assistente.
 
 O cálculo (marco 2) foi feito com pressupostos (lista abaixo) que o Pedro mandou assumir; falta
 confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Marco 5: assistente de importação da folha `s-27` (com o Excel fictício em `tests/fixtures/`),
-depois de o Pedro responder às dúvidas "Para o marco 5" mais abaixo.
+Marco 6: fecho do mês por empresa (alertas, pré-visualização, fechar/reabrir com motivo,
+fotografia das rubricas) e exportação para Excel e PDF.
 
 ## Checklist
 
@@ -54,8 +57,21 @@ depois de o Pedro responder às dúvidas "Para o marco 5" mais abaixo.
 - [x] `abrir.cmd` e `setup.cmd`, para PCs onde o PowerShell bloqueia scripts `.ps1`
 - [ ] Por verificar à mão pelo Pedro: "marcar um mês para 70 trabalhadores em menos de 10 min"
 
+### Marco 5 — importação da `s-27`
+- [x] `importacao.py`: ler (datas pela posição da coluna), planear (duplicados) e gravar
+      (tudo ou nada), com relatório
+- [x] Excel fictício `tests/fixtures/s27_ficticio.xlsx` e o script que o gera
+- [x] Assistente em "Base de dados": ficheiro, códigos antigos, nomes repetidos, empresas em
+      massa, confirmação e relatório (guardado em `saidas/` na pasta da app)
+- [x] Sugestão de empresa pelos nomes das folhas dos mapas de férias (LOUSA / LUSOC)
+- [x] Ensaio de leitura com o Excel real: 58 linhas, 4 nomes repetidos (linhas 10/69, 11/12,
+      26/74, 27/72), 73 discrepâncias, 24 viaturas, só o valor `baixa`; 21 de 54 com sugestão
+      de empresa
+- [x] `abrir.cmd` passa a abrir a app sem janela de consola; erros de arranque vão para
+      `erro.log` na pasta da app e para uma caixa de mensagem
+- [ ] Importação real, pelo Pedro
+
 ### Marcos seguintes
-- [ ] 5 — Importação da `s-27` (inclui o Excel fictício em `tests/fixtures/`)
 - [ ] 6 — Fecho do mês, alertas, Excel e PDF
 - [ ] 7 — Relatórios, backups, auditoria, PyInstaller
 
@@ -104,10 +120,12 @@ Estão implementados e testados em `calculo.py`. Se algum estiver errado, muda-s
 - Subsídio de alimentação, ajuda de custo França e prevenção, por empresa.
 - Limites de isenção fiscal (com o contabilista).
 
-### Para o marco 5 (importação)
-- "Lusoc" é a +INNOVATION ou uma terceira empresa?
-- Posso usar os ficheiros `2027-LOUSA --Mapa de Ferias PT.xlsm` e
-  `2027-LUSOC --Mapa de Ferias PT.xlsm` para sugerir a empresa de cada trabalhador?
+### Da importação (assumido em 2026-11-18; o assistente deixa sempre confirmar)
+- "Lusoc" foi tratado como a +INNOVATION, só para sugerir a empresa. Por confirmar.
+- As zonas importadas (`45 Orleans`, `64 Biarritz`) ficam com o país França.
+- Há um par de nomes repetidos dentro do próprio bloco 1 (linhas 11 e 12).
+
+### Outras
 - Um trabalhador pode mudar de empresa a meio do ano?
 - Fins de semana sem marcação geram alerta ou são normais?
 - O código antigo `s` não aparece na folha de 2027; só interessa se se importarem anos anteriores.
