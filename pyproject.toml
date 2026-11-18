@@ -1,6 +1,6 @@
 [project]
 name = "lsc-presencas"
-version = "0.1.0"
+version = "1.0.0"
 description = "Presenças e pré-processamento salarial do Groupe LSC"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -33,6 +33,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [dependency-groups]
 dev = [
+    "pyinstaller>=6.22.3",
     "pypdf>=7.1.1",
     "pytest>=9.2.0",
     "ruff>=0.17.5",

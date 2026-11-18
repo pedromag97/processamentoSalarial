@@ -2,7 +2,8 @@
 
 ## Marco atual
 
-**Marco 6 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 7.
+**Marco 7 concluído** (2026-11-18): os sete marcos da especificação estão feitos (versão 1.0.0).
+Falta a validação do Pedro com dados reais.
 
 A importação real ainda **não foi feita**: só se ensaiou a leitura do Excel real (sem gravar).
 Fica para o Pedro a fazer no PC do escritório, pelo assistente.
@@ -12,8 +13,9 @@ confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Marco 7: relatórios (mapa anual de férias, dias por cliente e viatura, mapa de prevenção),
-backup ao abrir a app, ecrã de auditoria e histórico na ficha, e empacotamento com PyInstaller.
+O Pedro experimenta a app com dados reais: importação da `s-27` numa base de dados limpa,
+valores dos parâmetros com o contabilista, um mês completo de marcações, fecho e ficheiros.
+O que ele encontrar passa a ser a lista de trabalho.
 
 ## Checklist
 
@@ -44,7 +46,7 @@ backup ao abrir a app, ecrã de auditoria e histórico na ficha, e empacotamento
 - [x] Tabelas: empresas, clientes, viaturas, zonas, códigos, feriados, parâmetros com vigência
 - [x] Trabalhadores: lista com pesquisa e filtro de inativos; ficha com dados, valores de
       exceção e histórico do salário base
-- [ ] Ficha: histórico de alterações (fica para o marco 7, com a auditoria)
+- [x] Ficha: histórico de alterações (feito no marco 7, com a auditoria)
 
 ### Marco 4 — dashboard de presenças
 - [x] `presencas.py`: interpretar `P+2`, gravar em lote com auditoria, bloquear meses fechados
@@ -84,8 +86,22 @@ backup ao abrir a app, ecrã de auditoria e histórico na ficha, e empacotamento
 - [x] Teste do critério "os totais do Excel batem certo com a soma dos PDF" (lê os PDF gerados)
 - [ ] Por ver pelo Pedro: o aspeto do PDF e as colunas do Excel-resumo
 
-### Marcos seguintes
-- [ ] 7 — Relatórios, backups ao abrir, ecrã de auditoria, PyInstaller
+### Marco 7 — relatórios, backups, auditoria e empacotamento
+- [x] `relatorios.py` e ecrã «Relatórios»: mapa anual de férias, mapa anual de prevenção, dias
+      por cliente e dias por viatura no mês; exportação para Excel em `saidas\relatorios\`
+- [x] `auditoria.py` e ecrã «Auditoria» (filtro por tipo e pesquisa; 500 registos mais recentes)
+- [x] Ficha do trabalhador: separador «Histórico de alterações»; as alterações à ficha e ao
+      salário base passam a ficar na auditoria
+- [x] Cópia de segurança ao abrir a app (antes das migrações); botão para fazer uma cópia e
+      abrir a pasta, no ecrã «Base de dados»
+- [x] `scripts\empacotar.cmd` (PyInstaller): pasta com `LSC-Presencas.exe`, testada (migra,
+      abre a janela e faz a cópia ao abrir)
+- [ ] Por fazer pelo Pedro: copiar a pasta do executável para o PC do escritório e experimentar
+
+### Por validar pelo Pedro (critérios de aceitação)
+- [ ] Marcar um mês para 70 trabalhadores em menos de 10 minutos
+- [ ] Aspeto do PDF e colunas do Excel-resumo
+- [ ] Pressupostos do cálculo e valores, com o contabilista
 
 ## Decisões tomadas
 
@@ -145,6 +161,12 @@ Estão implementados e testados em `calculo.py`. Se algum estiver errado, muda-s
   Preferes que a app troque o sinal sozinha?
 - O PDF não mostra os alertas do trabalhador (só a nota de rubricas por calcular). Está bem?
 - Trabalhadores sem empresa não entram em nenhum fecho (há um aviso no ecrã).
+
+### Dos relatórios (assumido em 2026-11-18)
+- Férias = código `FE`; prevenção = códigos com a flag "soma prevenção".
+- Dias por cliente/viatura contam só os códigos que "contam como trabalhado", pelo cliente e
+  pela viatura gravados em cada marcação (não pelos da ficha atual).
+- O mapa de férias não tem dias de direito nem saldo (a app não sabe quantos dias cada um tem).
 
 ### Outras
 - Um trabalhador pode mudar de empresa a meio do ano? (Hoje o fecho usa a empresa atual.)

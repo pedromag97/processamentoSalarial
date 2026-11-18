@@ -50,7 +50,7 @@ dentro do Claude Code, as variáveis do `ambiente.ps1` podem ser definidas à m�
 
 - Python 3.12 (gerido pelo `uv`; versões fixas no `uv.lock`), PySide6, SQLite com SQLAlchemy 2.x
   e Alembic, `openpyxl`, `reportlab`, `pytest`, `ruff`; `pypdf` só nos testes (ler os PDF
-  gerados). PyInstaller no marco 7.
+  gerados) e `pyinstaller` só para empacotar.
 - Repositório: `github.com/pedromag97/processamentoSalarial` (privado), branch `main`.
 
 ## Comandos
@@ -66,6 +66,10 @@ Sempre depois de `. .\scripts\ambiente.ps1` (põe o venv fora do OneDrive, em
 | Testes | `uv run pytest` |
 | Lint e formatação | `uv run ruff check .` e `uv run ruff format .` |
 | Nova migração | `uv run alembic revision --autogenerate -m "descrição" --rev-id 000N` |
+| Criar o executável | `scripts\empacotar.cmd` (sai em `%LOCALAPPDATA%\LSC-Presencas-dev\dist`) |
+
+Neste PC os comandos são lentos (a bateria de testes leva uns 3 minutos): correr os testes em
+segundo plano e, ao investigar uma falha, correr só o ficheiro em causa.
 
 ## Estrutura
 
@@ -85,6 +89,8 @@ src/lsc_presencas/
   lancamentos.py  auditoria e bloqueio de mês fechado nos lançamentos manuais
   backups.py      cópias de segurança da base de dados (últimas 30)
   exportacao.py   gera os ficheiros do mês; exportar_excel.py e exportar_pdf.py fazem cada um
+  relatorios.py   férias e prevenção (anuais), dias por cliente e por viatura; para_excel()
+  auditoria.py    registar() e listar() a auditoria (ecrã Auditoria e histórico da ficha)
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -95,8 +101,9 @@ src/lsc_presencas/
     grelha.py       modelos da grelha de presenças e do rodapé de totais por dia
     ecra_presencas.py  dashboard: três tabelas sincronizadas, teclado, filtros
     ecra_lancamentos.py, ecra_fecho.py, periodo.py (seletor de mês)
+    ecra_relatorios.py, ecra_auditoria.py, lista.py (tabela só de leitura)
     formatos.py     texto <-> números e datas (vírgula decimal, dd/mm/aaaa)
-scripts/          ambiente.ps1, seed_demo.py
+scripts/          ambiente.ps1/.cmd, seed_demo.py, empacotar.cmd, lsc_presencas_exe.py
 tests/
 ```
 
@@ -123,6 +130,15 @@ tests/
   (`lancamentos.registar`), que escreve a auditoria e recusa meses fechados.
 - **Ficheiros gerados:** `saidas\AAAA-MM_<EMPRESA>\` na pasta da app (nunca no repositório).
   Mês aberto = pasta e ficheiros marcados como provisórios.
+- **Auditoria:** além das marcações, dos lançamentos e do fecho, ficam registadas as
+  alterações à ficha do trabalhador e ao salário base. O histórico da ficha filtra pelo nº
+  interno guardado no JSON do registo (`"trabalhador": N`).
+- **Backups:** ao abrir a app (antes das migrações), antes de fechar e de reabrir um mês, e à
+  mão no ecrã «Base de dados». Guardam-se os últimos 30.
+- **Executável:** PyInstaller em modo pasta, sem consola. As migrações vão como dados
+  (`--add-data`). O executável nunca lê o `.env`: usa `%APPDATA%\LSC-Presencas`, a não ser
+  que a variável de ambiente `LSC_APP_DIR` esteja definida. A pasta `dist` fica fora do
+  OneDrive e do Git.
 - **Testes:** o `conftest.py` aponta `LSC_APP_DIR` para uma pasta temporária (nenhum teste
   escreve na pasta de dados verdadeira) e faz `gc.collect()` no fim de cada teste, para os
   ecrãs Qt serem destruídos antes de o Python sair.

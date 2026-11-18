@@ -2,7 +2,8 @@
 
 import sys
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -17,12 +18,14 @@ from PySide6.QtWidgets import (
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from .. import __version__, config
+from .. import __version__, backups, config
 from ..modelos import CodigoPresenca, Empresa, Feriado, Marcacao, Trabalhador
+from .ecra_auditoria import EcraAuditoria
 from .ecra_fecho import EcraFecho
 from .ecra_importacao import AssistenteImportacao
 from .ecra_lancamentos import EcraLancamentos
 from .ecra_presencas import EcraPresencas
+from .ecra_relatorios import EcraRelatorios
 from .ecra_tabelas import EcraTabelas
 from .ecra_trabalhadores import EcraTrabalhadores
 
@@ -51,16 +54,53 @@ class EcraInicio(QWidget):
         self.texto.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.botao_importar = QPushButton("Importar a folha de ponto (s-27)…")
         self.botao_importar.clicked.connect(self.importar)
+        self.botao_backup = QPushButton("Fazer uma cópia de segurança agora")
+        self.botao_backup.clicked.connect(self.fazer_backup)
+        self.botao_pasta = QPushButton("Abrir a pasta das cópias de segurança")
+        self.botao_pasta.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(config.pasta_backups())))
+        )
+        self.mensagem = QLabel()
+        self.mensagem.setAlignment(Qt.AlignmentFlag.AlignCenter)
         disposicao = QVBoxLayout(self)
         disposicao.addStretch(1)
         disposicao.addWidget(self.texto)
-        disposicao.addWidget(self.botao_importar, 0, Qt.AlignmentFlag.AlignCenter)
+        for botao in (self.botao_importar, self.botao_backup, self.botao_pasta):
+            disposicao.addWidget(botao, 0, Qt.AlignmentFlag.AlignCenter)
+        disposicao.addWidget(self.mensagem)
         disposicao.addStretch(1)
         self.recarregar()
 
     def recarregar(self) -> None:
         linhas = [f"{nome}: {total}" for nome, total in resumo_bd(self.sessao).items()]
-        self.texto.setText("\n".join(["LSC Presenças", "", *linhas, "", str(config.caminho_bd())]))
+        copias = backups.listar()
+        ultima = copias[-1].name if copias else "nenhuma"
+        self.texto.setText(
+            "\n".join(
+                [
+                    f"LSC Presenças {__version__}",
+                    "",
+                    *linhas,
+                    "",
+                    f"Base de dados: {config.caminho_bd()}",
+                    f"Cópias de segurança: {len(copias)} (guardam-se as últimas "
+                    f"{backups.MAX_BACKUPS}); a mais recente: {ultima}",
+                ]
+            )
+        )
+
+    def fazer_backup(self) -> bool:
+        try:
+            self.sessao.commit()
+            destino = backups.fazer_backup(self.sessao.get_bind(), "manual")
+        except Exception as erro:  # noqa: BLE001 - mostra-se a causa
+            self.mensagem.setStyleSheet("color:#B00020;")
+            self.mensagem.setText(f"A cópia de segurança falhou: {erro}")
+            return False
+        self.recarregar()
+        self.mensagem.setStyleSheet("color:#1B6E1B;")
+        self.mensagem.setText(f"Cópia guardada em {destino}")
+        return True
 
     def importar(self) -> None:
         AssistenteImportacao(self.sessao, self).exec()
@@ -79,8 +119,10 @@ class JanelaPrincipal(QMainWindow):
             "Presenças": EcraPresencas(self.sessao),
             "Lançamentos": EcraLancamentos(self.sessao),
             "Fecho do mês": EcraFecho(self.sessao),
+            "Relatórios": EcraRelatorios(self.sessao),
             "Trabalhadores": EcraTrabalhadores(self.sessao),
             "Tabelas": EcraTabelas(self.sessao),
+            "Auditoria": EcraAuditoria(self.sessao),
             "Base de dados": EcraInicio(self.sessao),
         }
         self.navegacao = QListWidget()

@@ -1,6 +1,7 @@
 """Caminhos e configuração. Tudo vem de variáveis de ambiente (ver .env.example)."""
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import find_dotenv, load_dotenv
@@ -8,7 +9,9 @@ from dotenv import find_dotenv, load_dotenv
 NOME_APP = "LSC-Presencas"
 NOME_BD = "presencas.db"
 
-load_dotenv(find_dotenv(usecwd=True))
+# O executável instalado nunca lê um .env (usa sempre a pasta de dados do utilizador).
+if not getattr(sys, "frozen", False):
+    load_dotenv(find_dotenv(usecwd=True))
 
 
 def _pasta(caminho: Path) -> Path:

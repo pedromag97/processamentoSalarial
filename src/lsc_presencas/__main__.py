@@ -10,7 +10,32 @@ from . import config, db
 from .dados_base import carregar_dados_base
 
 
-def preparar_bd():
+def copia_ao_abrir() -> None:
+    """Cópia de segurança antes de mexer na base de dados (se já existir).
+
+    Uma falha aqui não impede a app de abrir: fica registada em `erro.log`.
+    """
+    from . import backups
+
+    caminho = config.caminho_bd()
+    if not caminho.is_file() or caminho.stat().st_size == 0:
+        return
+    engine = db.criar_engine()
+    try:
+        backups.fazer_backup(engine, "abertura")
+    except Exception:  # noqa: BLE001
+        import traceback
+
+        (config.pasta_app() / "erro.log").write_text(
+            "A cópia de segurança ao abrir falhou.\n" + traceback.format_exc(), encoding="utf-8"
+        )
+    finally:
+        engine.dispose()
+
+
+def preparar_bd(com_copia: bool = False):
+    if com_copia:
+        copia_ao_abrir()
     db.migrar()
     fabrica = db.criar_fabrica_sessoes(db.criar_engine())
     with fabrica() as sessao:
@@ -29,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         from .ui.app import correr
 
-        return correr(preparar_bd())
+        return correr(preparar_bd(com_copia=True))
     except Exception:
         _mostrar_erro_de_arranque()
         return 1

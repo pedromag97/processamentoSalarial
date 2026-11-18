@@ -338,8 +338,10 @@ def test_navegacao_da_janela_principal(app, fabrica):
         "Presenças",
         "Lançamentos",
         "Fecho do mês",
+        "Relatórios",
         "Trabalhadores",
         "Tabelas",
+        "Auditoria",
         "Base de dados",
     ]
     assert janela.pilha.currentWidget() is janela.ecras["Presenças"]
