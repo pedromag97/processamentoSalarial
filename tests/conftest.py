@@ -28,6 +28,9 @@ def destruir_ecras():
     """
     yield
     _limpar_qt()
+    from lsc_presencas import contas
+
+    contas.terminar_sessao()  # nenhum teste herda o login de outro
 
 
 def _limpar_qt() -> None:

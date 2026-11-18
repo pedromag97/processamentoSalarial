@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import contas
 from ..modelos import (
     Cliente,
     CodigoPresenca,
@@ -82,4 +83,6 @@ class EcraTabelas(QWidget):
         self.separadores.currentChanged.connect(lambda n: self.separadores.widget(n).recarregar())
 
     def recarregar(self) -> None:
+        for vista in self.vistas.values():
+            vista.bloquear(not contas.e_admin())
         self.separadores.currentWidget().recarregar()

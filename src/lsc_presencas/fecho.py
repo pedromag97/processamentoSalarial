@@ -11,7 +11,7 @@ from datetime import date, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import backups, calculo, mapa
+from . import backups, calculo, contas, mapa
 from .modelos import (
     FECHO_ABERTO,
     FECHO_FECHADO,
@@ -146,6 +146,7 @@ def fechar(
     Recusa (`FechoRecusado`) se houver erros; pede confirmação (`FechoPorConfirmar`) se houver
     avisos e `confirmado` for False. Faz uma cópia de segurança antes de gravar.
     """
+    contas.exigir_admin("fechar o mês")
     utilizador = utilizador or utilizador_atual()
     try:
         fecho = registo(sessao, empresa_id, ano, mes)
@@ -224,6 +225,7 @@ def reabrir(
 
     A fotografia do fecho é apagada (fica na cópia de segurança feita antes de reabrir).
     """
+    contas.exigir_admin("reabrir o mês")
     motivo = (motivo or "").strip()
     if not motivo:
         raise FechoRecusado("Para reabrir o mês é obrigatório escrever o motivo.")

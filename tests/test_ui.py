@@ -341,6 +341,7 @@ def test_navegacao_da_janela_principal(app, fabrica):
         "Relatórios",
         "Trabalhadores",
         "Tabelas",
+        "Contas",
         "Auditoria",
         "Base de dados",
     ]

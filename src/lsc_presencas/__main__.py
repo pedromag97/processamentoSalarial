@@ -2,6 +2,7 @@
 
 python -m lsc_presencas           abre a app
 python -m lsc_presencas migrar    cria/atualiza a base de dados e os dados base
+python -m lsc_presencas repor-admin   define uma palavra-passe nova para um administrador
 """
 
 import sys
@@ -52,8 +53,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        from .ui.app import correr
+        from .ui.app import correr, recuperar_administrador
 
+        if argv[:1] == ["repor-admin"]:
+            return recuperar_administrador(preparar_bd(com_copia=True))
         return correr(preparar_bd(com_copia=True))
     except Exception:
         _mostrar_erro_de_arranque()

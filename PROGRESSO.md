@@ -2,8 +2,12 @@
 
 ## Marco atual
 
-**Marco 7 concluído** (2026-11-18): os sete marcos da especificação estão feitos (versão 1.0.0).
-Falta a validação do Pedro com dados reais.
+**Marco 8 concluído** (2026-11-18): contas de login. À espera da aprovação do Pedro para o
+marco 9.
+
+Os sete marcos da especificação original estão feitos (versão 1.0.0). A 2026-11-18 o Pedro
+pediu contas de login e uma base de dados única do Grupo LSC, usada por várias pessoas ao
+mesmo tempo e em sítios diferentes. Aprovou o plano dos marcos 8 a 11 (abaixo).
 
 A importação real ainda **não foi feita**: só se ensaiou a leitura do Excel real (sem gravar).
 Fica para o Pedro a fazer no PC do escritório, pelo assistente.
@@ -13,9 +17,12 @@ confirmá-los com o contabilista.
 
 ## Próximo passo
 
-O Pedro experimenta a app com dados reais: importação da `s-27` numa base de dados limpa,
-valores dos parâmetros com o contabilista, um mês completo de marcações, fecho e ficheiros.
-O que ele encontrar passa a ser a lista de trabalho.
+Marco 9: a app passa a ligar-se a um servidor PostgreSQL (por configuração), com as migrações
+testadas nesse servidor, uma ferramenta para passar os dados do ficheiro SQLite para lá e as
+cópias de segurança feitas no servidor.
+
+Em paralelo, o Pedro experimenta a app com dados reais (importação da `s-27`, valores com o
+contabilista, um mês completo, fecho e ficheiros).
 
 ## Checklist
 
@@ -98,6 +105,27 @@ O que ele encontrar passa a ser a lista de trabalho.
       abre a janela e faz a cópia ao abrir)
 - [ ] Por fazer pelo Pedro: copiar a pasta do executável para o PC do escritório e experimentar
 
+### Depois do marco 7 (pedidos do Pedro a 2026-11-18)
+- [x] Grelha: colunas fixas redimensionáveis (a largura fica guardada em `interface.json`)
+- [x] Grelha: explicações ao passar o rato (botões de código, células, cabeçalhos, grupos)
+
+### Marco 8 — contas e login
+- [x] Tabela `utilizador` (migração `0003`); palavra-passe guardada só como resumo scrypt
+- [x] `contas.py`: criar, autenticar (bloqueio de 5 min após 5 falhas), perfis, sessão em curso
+- [x] Ao abrir: criar o primeiro administrador ou pedir o login; "Terminar sessão" e "Mudar a
+      palavra-passe" na barra lateral
+- [x] Ecrã «Contas» (só administrador): criar, repor a palavra-passe, mudar o perfil,
+      ativar/desativar; tem de ficar sempre um administrador ativo
+- [x] Permissões: o utilizador não altera tabelas, fichas nem salários, não fecha nem reabre
+      meses, não importa, e não vê os ecrãs Contas, Auditoria e Base de dados
+- [x] A auditoria passa a registar o nome da conta (em vez do utilizador do Windows)
+- [x] Recuperação: `LSC-Presencas.exe repor-admin` (ou `python -m lsc_presencas repor-admin`)
+
+### Marcos seguintes (plano aprovado a 2026-11-18)
+- [ ] 9 — Base de dados em servidor (PostgreSQL), migração dos dados, backups no servidor
+- [ ] 10 — Uso em simultâneo: a grelha atualiza-se, conflitos na mesma célula, fecho seguro
+- [ ] 11 — Instalação: guia do servidor e da VPN, executável novo, teste entre dois PCs
+
 ### Por validar pelo Pedro (critérios de aceitação)
 - [ ] Marcar um mês para 70 trabalhadores em menos de 10 minutos
 - [ ] Aspeto do PDF e colunas do Excel-resumo
@@ -161,6 +189,17 @@ Estão implementados e testados em `calculo.py`. Se algum estiver errado, muda-s
   Preferes que a app troque o sinal sozinha?
 - O PDF não mostra os alertas do trabalhador (só a nota de rubricas por calcular). Está bem?
 - Trabalhadores sem empresa não entram em nenhum fecho (há um aviso no ecrã).
+
+### Das contas e do servidor (2026-11-18)
+- Respostas do Pedro: dois perfis (administrador e utilizador); duas ou mais pessoas em
+  simultâneo; um PC do escritório como servidor; PCs em sítios diferentes; o administrador
+  repõe palavras-passe; sem bloqueio automático por inatividade; uma base de dados única
+  para o Grupo LSC, com as várias empresas.
+- Por confirmar: a tabela de permissões (o utilizador vê salários? pode alterar fichas?).
+- Por saber: se já há VPN ou alguém que trate da informática do escritório. O servidor não
+  deve ficar exposto diretamente à Internet.
+- O login controla o uso da app; quem tiver as credenciais do servidor de base de dados
+  chega aos dados por fora. Essas credenciais ficam só com o administrador.
 
 ### Dos relatórios (assumido em 2026-11-18)
 - Férias = código `FE`; prevenção = códigos com a flag "soma prevenção".

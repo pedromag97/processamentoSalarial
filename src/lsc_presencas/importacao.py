@@ -19,7 +19,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import presencas
+from . import contas, presencas
 from .modelos import PAIS_FRANCA, Cliente, Empresa, Trabalhador, Viatura, Zona
 from .presencas import Alteracao
 from .ui.formatos import sem_acentos
@@ -345,6 +345,7 @@ def gravar(
     mapeamento: dict[str, str | None],
 ) -> Relatorio:
     """Grava a importação (tudo ou nada) e devolve o relatório."""
+    contas.exigir_admin("importar a folha de ponto")
     usados = {v for p in pessoas for v in p.valores.values()}
     por_decidir = sorted(v for v in usados if mapeamento.get(v) is None)
     if por_decidir:

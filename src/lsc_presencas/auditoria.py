@@ -16,6 +16,7 @@ NOMES_ENTIDADE = {
     "fecho_mes": "Fecho do mês",
     "trabalhador": "Ficha do trabalhador",
     "salario_base": "Salário base",
+    "conta": "Conta de login",
 }
 NOMES_ACAO = {
     "criar": "Criou",

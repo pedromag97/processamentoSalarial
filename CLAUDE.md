@@ -91,6 +91,7 @@ src/lsc_presencas/
   exportacao.py   gera os ficheiros do mês; exportar_excel.py e exportar_pdf.py fazem cada um
   relatorios.py   férias e prevenção (anuais), dias por cliente e por viatura; para_excel()
   auditoria.py    registar() e listar() a auditoria (ecrã Auditoria e histórico da ficha)
+  contas.py       contas de login: palavras-passe, autenticar, perfis, sessão em curso
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -102,6 +103,7 @@ src/lsc_presencas/
     ecra_presencas.py  dashboard: três tabelas sincronizadas, teclado, filtros
     ecra_lancamentos.py, ecra_fecho.py, periodo.py (seletor de mês)
     ecra_relatorios.py, ecra_auditoria.py, lista.py (tabela só de leitura)
+    ecra_contas.py  login, primeira conta, gestão de contas, mudar a palavra-passe
     formatos.py     texto <-> números e datas (vírgula decimal, dd/mm/aaaa)
 scripts/          ambiente.ps1/.cmd, seed_demo.py, empacotar.cmd, lsc_presencas_exe.py
 tests/
@@ -119,7 +121,12 @@ tests/
 - **Zona e feriado têm país** (`PT`/`FR`).
 - **Trabalhador pode não ter empresa** (logo após a importação); o nº interno é atribuído pela
   app, porque o nº da folha `s-27` repete-se entre blocos.
-- **Auditoria sem login:** "quem" é o utilizador do Windows.
+- **Contas e login (marco 8):** `contas.py` guarda a sessão em curso (`contas.atual()`).
+  Perfis `admin` e `utilizador`. Sem login (testes, linha de comandos) não há restrições e a
+  auditoria usa o utilizador do Windows; com login, usa o nome da conta. As operações só de
+  administrador chamam `contas.exigir_admin()` no núcleo (fechar, reabrir, importar, gerir
+  contas) e os ecrãs ficam só de leitura (`VistaTabela.bloquear`). A palavra-passe nunca se
+  guarda nem se regista: só o resumo scrypt. Recuperação: argumento `repor-admin`.
 - **Fecho do mês:** `fecho.fechar()` grava uma fotografia em JSON (`FechoMes.fotografia` e uma
   linha `FechoTrabalhador` por pessoa). `fecho.mapa_do_mes()` devolve a fotografia se o mês
   estiver fechado e o cálculo ao vivo se estiver aberto; o Excel e os PDF saem sempre desse

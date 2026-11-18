@@ -18,12 +18,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .. import auditoria
+from .. import auditoria, contas
 from ..modelos import SalarioBase, Trabalhador
 from . import definicoes as d
 from .ecra_auditoria import ListaAuditoria
 from .formatos import sem_acentos
-from .tabela import Formulario, ModeloTabela, VistaTabela, mensagem_de_erro
+from .tabela import SEM_PERMISSAO, Formulario, ModeloTabela, VistaTabela, mensagem_de_erro
 
 
 class FiltroTrabalhadores(QSortFilterProxyModel):
@@ -108,6 +108,15 @@ class FichaTrabalhador(QDialog):
         botoes.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
         botoes.accepted.connect(self.guardar)
         botoes.rejected.connect(self.reject)
+        self.botao_guardar = botoes.button(QDialogButtonBox.StandardButton.Save)
+        if not contas.e_admin():
+            # Sem permissão para alterar: a ficha fica só para consulta.
+            self.botao_guardar.setEnabled(False)
+            self.botao_guardar.setToolTip(SEM_PERMISSAO)
+            self.dados.setEnabled(False)
+            self.excecoes.setEnabled(False)
+            self.salarios.bloquear(True)
+            botoes.button(QDialogButtonBox.StandardButton.Cancel).setText("Fechar")
 
         cima = QHBoxLayout()
         cima.addWidget(grupo_dados, 1)
@@ -155,6 +164,9 @@ class FichaTrabalhador(QDialog):
             auditoria.registar(sessao, "salario_base", salario.id, acao, antigo, novo)
 
     def guardar(self) -> bool:
+        if not contas.e_admin():
+            self.erro.setText(SEM_PERMISSAO)
+            return False
         try:
             valores = {**self.dados.valores(), **self.excecoes.valores()}
             with self.sessao.no_autoflush:
@@ -241,6 +253,7 @@ class EcraTrabalhadores(QWidget):
         self.contagem.setText(f"{self.filtro.rowCount()} de {self.modelo.rowCount()}")
 
     def recarregar(self) -> None:
+        self.vista.bloquear(not contas.e_admin())
         self.vista.recarregar()
 
     def abrir_ficha(self) -> None:

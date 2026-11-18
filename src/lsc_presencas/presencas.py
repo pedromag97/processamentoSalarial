@@ -49,6 +49,13 @@ class MesFechado(Exception):
 
 
 def utilizador_atual() -> str:
+    """Quem fica registado na auditoria: a conta com sessão iniciada na app; sem login
+    (testes, linha de comandos), o utilizador do Windows."""
+    from . import contas  # importado aqui para evitar uma dependência circular
+
+    sessao = contas.atual()
+    if sessao is not None:
+        return sessao.nome_utilizador
     try:
         return getpass.getuser()
     except Exception:  # noqa: BLE001 - sem utilizador do sistema, regista-se na mesma

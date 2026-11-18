@@ -317,6 +317,29 @@ class FechoTrabalhador(Base):
     fecho: Mapped[FechoMes] = relationship(back_populates="linhas")
 
 
+PERFIL_ADMIN = "admin"
+PERFIL_UTILIZADOR = "utilizador"
+
+
+class Utilizador(Base):
+    """Conta de login na app. A palavra-passe nunca é guardada: só o seu resumo (scrypt)."""
+
+    __tablename__ = "utilizador"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome_utilizador: Mapped[str] = mapped_column(String(40), unique=True)  # em minúsculas
+    nome: Mapped[str] = mapped_column(String(120))
+    perfil: Mapped[str] = mapped_column(String(12), default=PERFIL_UTILIZADOR)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    senha_hash: Mapped[str] = mapped_column(String(200))
+    tentativas_falhadas: Mapped[int] = mapped_column(Integer, default=0)
+    bloqueado_ate: Mapped[datetime | None] = mapped_column(DateTime)
+    ultimo_login: Mapped[datetime | None] = mapped_column(DateTime)
+
+    def __repr__(self) -> str:
+        return f"<Utilizador {self.nome_utilizador} ({self.perfil})>"
+
+
 class Auditoria(Base):
     """Registo de alterações: quem, quando, valor antigo e valor novo (em JSON)."""
 

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy.orm import Session
 
-from .. import calculo, config, exportacao, fecho
+from .. import calculo, config, contas, exportacao, fecho
 from ..exportar_pdf import euros, numero
 from ..mapa import MapaMes, MapaTrabalhador
 from . import definicoes as d
@@ -219,11 +219,20 @@ class EcraFecho(QWidget):
             self.rotulo_estado.setText("ABERTO")
         self.visto_avisos.setChecked(False)
         self.visto_avisos.setVisible(not fechado and avisos > 0 and erros == 0)
+        admin = contas.e_admin()
         self.botao_fechar.setVisible(not fechado)
-        self.botao_fechar.setEnabled(mapa is not None and erros == 0)
+        self.botao_fechar.setEnabled(admin and mapa is not None and erros == 0)
         self.botao_fechar.setToolTip(
-            "Resolva primeiro os erros da lista de alertas." if erros else ""
+            "Só um administrador pode fechar o mês."
+            if not admin
+            else "Resolva primeiro os erros da lista de alertas."
+            if erros
+            else ""
         )
+        self.visto_avisos.setEnabled(admin)
+        self.campo_motivo.setEnabled(admin)
+        self.botao_reabrir.setEnabled(admin)
+        self.botao_reabrir.setToolTip("" if admin else "Só um administrador pode reabrir o mês.")
         self.campo_motivo.setVisible(fechado)
         self.campo_motivo.clear()
         self.botao_reabrir.setVisible(fechado)
@@ -315,7 +324,7 @@ class EcraFecho(QWidget):
                 self.seletor.mes,
                 confirmado=self.visto_avisos.isChecked(),
             )
-        except fecho.FechoRecusado as erro:
+        except (fecho.FechoRecusado, contas.SemPermissao) as erro:
             self._dizer(str(erro), erro=True)
             return False
         except Exception as erro:  # noqa: BLE001 - ex.: a cópia de segurança falhou
@@ -339,7 +348,7 @@ class EcraFecho(QWidget):
                 self.seletor.mes,
                 self.campo_motivo.text(),
             )
-        except fecho.FechoRecusado as erro:
+        except (fecho.FechoRecusado, contas.SemPermissao) as erro:
             self._dizer(str(erro), erro=True)
             return False
         except Exception as erro:  # noqa: BLE001

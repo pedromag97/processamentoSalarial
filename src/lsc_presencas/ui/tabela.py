@@ -41,6 +41,7 @@ ESCOLHA = "escolha"
 COR = "cor"
 
 COR_AVISO = QColor("#FFF3B0")
+SEM_PERMISSAO = "A sua conta não tem permissão para alterar estes dados (só um administrador)."
 COR_PENDENTE = QColor("#EFEFEF")
 
 Papel = Qt.ItemDataRole
@@ -142,6 +143,8 @@ class ModeloTabela(QAbstractTableModel):
         # Chamado antes de cada gravação com a ação («criar», «alterar» ou «apagar»), para
         # validar e registar a auditoria. Se levantar ValueError, a alteração é desfeita.
         self._ao_gravar = ao_gravar
+        # Só de leitura: usado quando a conta em sessão não pode alterar esta tabela.
+        self.bloqueada = False
         self.linhas: list[Any] = []
         self._pendentes: set[int] = set()
         self.opcoes: dict[int, list[tuple[Any, str]]] = {}
@@ -199,7 +202,7 @@ class ModeloTabela(QAbstractTableModel):
             return Qt.ItemFlag.NoItemFlags
         coluna = self.colunas[indice.column()]
         base = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        if coluna.so_leitura:
+        if coluna.so_leitura or self.bloqueada:
             return base
         if coluna.tipo == BOOL:
             return base | Qt.ItemFlag.ItemIsUserCheckable
@@ -253,6 +256,9 @@ class ModeloTabela(QAbstractTableModel):
         obj = self.linhas[indice.row()]
         coluna = self.colunas[indice.column()]
         if coluna.so_leitura:
+            return False
+        if self.bloqueada:
+            self.erro.emit(SEM_PERMISSAO)
             return False
         try:
             if coluna.tipo == BOOL:
@@ -322,6 +328,9 @@ class ModeloTabela(QAbstractTableModel):
 
     def apagar(self, linha: int) -> bool:
         obj = self.linhas[linha]
+        if self.bloqueada:
+            self.erro.emit(SEM_PERMISSAO)
+            return False
         if not self.pendente(obj):
             try:
                 if self._ao_gravar:
@@ -442,6 +451,15 @@ class VistaTabela(QWidget):
     def _para_modelo(self, indice: QModelIndex) -> QModelIndex:
         return self.proxy.mapToSource(indice) if self.proxy else indice
 
+    def bloquear(self, bloqueada: bool) -> None:
+        """Põe a tabela só de leitura (ou volta a deixá-la editável)."""
+        self.modelo.bloqueada = bloqueada
+        self.botao_novo.setEnabled(not bloqueada)
+        self.botao_apagar.setEnabled(not bloqueada)
+        dica = SEM_PERMISSAO if bloqueada else ""
+        self.botao_novo.setToolTip(dica)
+        self.botao_apagar.setToolTip(dica)
+
     def objeto_atual(self):
         indice = self._para_modelo(self.tabela.currentIndex())
         return self.modelo.linhas[indice.row()] if indice.isValid() else None
@@ -451,6 +469,8 @@ class VistaTabela(QWidget):
         self.tabela.resizeColumnsToContents()
 
     def novo(self) -> None:
+        if self.modelo.bloqueada:
+            return
         linha = self.modelo.novo()
         coluna = next(
             (n for n, c in enumerate(self.modelo.colunas) if not c.so_leitura and c.tipo != BOOL), 0
