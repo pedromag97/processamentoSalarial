@@ -185,7 +185,7 @@ tests/
   é redirecionado para `AppData\Local\Packages\Claude_…\LocalCache\Local\`. Por isso o venv,
   a base de dados de desenvolvimento e a pasta `dist` das sessões do Claude não são os mesmos
   que os do `abrir.cmd`/`setup.cmd` corridos pelo Pedro. O executável para uso real copia-se
-  para uma pasta estável (no PC do marco 7: `C:\LSC-Presencas`, com atalho no ambiente de
+  para uma pasta estável (no PC do marco 7: `C:\LSC\LSC-Presencas`, com atalho no ambiente de
   trabalho). O antivírus (CyberCapture) analisa cada executável novo antes de o deixar abrir.
 - **Testes:** o `conftest.py` aponta `LSC_APP_DIR` para uma pasta temporária (nenhum teste
   escreve na pasta de dados verdadeira) e faz `gc.collect()` no fim de cada teste, para os
