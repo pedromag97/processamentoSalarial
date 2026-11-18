@@ -157,6 +157,11 @@ def url_servidor(ligacao: Ligacao, senha: str) -> str:
     ).render_as_string(hide_password=False)
 
 
+def caminho_icone() -> Path:
+    """O símbolo do programa (vai dentro do pacote, por isso também dentro do executável)."""
+    return Path(__file__).parent / "recursos" / "icone.png"
+
+
 def pasta_backups() -> Path:
     return _pasta(pasta_app() / "backups")
 

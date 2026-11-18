@@ -3,7 +3,7 @@
 import sys
 
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -260,9 +260,17 @@ class JanelaPrincipal(QMainWindow):
         super().closeEvent(evento)
 
 
+def aplicacao() -> QApplication:
+    """A aplicação Qt, com o símbolo do programa em todas as janelas e na barra de tarefas."""
+    app = QApplication.instance() or QApplication(sys.argv)
+    if config.caminho_icone().is_file():
+        app.setWindowIcon(QIcon(str(config.caminho_icone())))
+    return app
+
+
 def correr(fabrica: sessionmaker[Session]) -> int:
     """Pede o login e abre a janela; «Terminar sessão» volta ao login."""
-    app = QApplication.instance() or QApplication(sys.argv)
+    app = aplicacao()
     while True:
         contas.terminar_sessao()
         with fabrica() as sessao:
@@ -281,7 +289,7 @@ def correr(fabrica: sessionmaker[Session]) -> int:
 def recuperar_administrador(fabrica: sessionmaker[Session]) -> int:
     """Comando de recuperação (`repor-admin`): define uma palavra-passe nova para um
     administrador, sem login. Só serve a quem já tem acesso ao PC e à base de dados."""
-    app = QApplication.instance() or QApplication(sys.argv)
+    app = aplicacao()
     with fabrica() as sessao:
         admins = [c for c in contas.listar(sessao) if c.perfil == PERFIL_ADMIN and c.ativo]
         if not admins:

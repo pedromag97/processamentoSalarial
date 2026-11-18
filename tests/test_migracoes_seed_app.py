@@ -63,3 +63,12 @@ def test_a_janela_principal_abre(fabrica):
     with fabrica() as sessao:
         assert resumo_bd(sessao)["Códigos de presença"] == 10
     janela.close()
+
+
+def test_o_programa_tem_o_simbolo_nas_janelas(app):
+    from lsc_presencas import config
+    from lsc_presencas.ui.app import aplicacao
+
+    assert config.caminho_icone().is_file()
+    assert config.caminho_icone().with_suffix(".ico").is_file()  # o do executável e dos atalhos
+    assert not aplicacao().windowIcon().isNull()

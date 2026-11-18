@@ -172,6 +172,10 @@ tests/
   Qualquer operação que altere dados de um funcionário tem de chamar
   `bloqueios.exigir_livres()`. A tabela não entra nas cópias nem na transferência. `ID_PROGRAMA`
   identifica o programa aberto: nos testes, a "outra pessoa" usa outro valor de `programa`.
+- **Não alterar ficheiros do projeto enquanto o `empacotar.cmd` corre:** o executável fica
+  com código a meio (aconteceu a 2026-11-18). Também não editar `.cmd` com `sed` nem com
+  cadeias Python não cruas: as barras ``, `\s`, `\l` dos caminhos estragam o ficheiro.
+  Usar a ferramenta de edição.
 - **Empacotar:** o `empacotar.cmd` força o OpenSSL do próprio Python (`--add-binary` e PATH).
   Sem isso o PyInstaller apanha o do Git ou do MSYS e o `_ssl` não carrega dentro do `.exe`
   (a ligação ao servidor falha). Depois de empacotar, ensaiar sempre o `.exe` contra um

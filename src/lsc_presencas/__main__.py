@@ -59,9 +59,8 @@ def abrir_base_de_dados():
 
     Devolve None se a pessoa desistiu.
     """
-    from PySide6.QtWidgets import QApplication
-
     from . import servidor
+    from .ui.app import aplicacao
     from .ui.ecra_ligacao import DialogoLigacao
 
     while True:
@@ -71,7 +70,7 @@ def abrir_base_de_dados():
             if not config.usa_servidor():
                 raise
             _registar_erro()  # o detalhe técnico fica em erro.log; o ecrã mostra o resumo
-            app = QApplication.instance() or QApplication(sys.argv)
+            app = aplicacao()
             dialogo = DialogoLigacao(
                 erro=servidor.explicar(erro)
                 + " Corrija a ligação e guarde, ou feche esta janela e tente mais tarde."

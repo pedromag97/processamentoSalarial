@@ -1,4 +1,7 @@
 @echo off
+rem ATENCAO: nao alterar ficheiros do projeto enquanto isto corre (o executavel ficaria com
+rem codigo a meio). Depois de construir, ensaiar o .exe antes de o copiar para os PCs.
+rem
 rem Cria a pasta com o executavel, fora do OneDrive:
 rem   %LOCALAPPDATA%\LSC-Presencas-dev\dist\LSC-Presencas\LSC-Presencas.exe
 cd /d "%~dp0.."
@@ -20,8 +23,10 @@ set "PATH=%PYHOME%;%PYHOME%\DLLs;%PATH%"
 uv run pyinstaller "%CD%\scripts\lsc_presencas_exe.py" ^
     --name LSC-Presencas ^
     --noconsole --noconfirm --clean ^
+    --icon "%CD%\src\lsc_presencas\recursos\icone.ico" ^
     --paths "%CD%\src" ^
     --add-data "%CD%\src\lsc_presencas\migracoes;lsc_presencas\migracoes" ^
+    --add-data "%CD%\src\lsc_presencas\recursos;lsc_presencas\recursos" ^
     --add-binary "%PYHOME%\DLLs\libcrypto-3-x64.dll;." ^
     --add-binary "%PYHOME%\DLLs\libssl-3-x64.dll;." ^
     --exclude-module pytest --exclude-module pypdf --exclude-module pgserver ^

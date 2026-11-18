@@ -172,6 +172,11 @@ contabilista, um mês completo, fecho e ficheiros).
 - [x] O cadeado sai ao fechar a ficha, mudar a seleção, mudar de ecrã ou fechar o programa;
       caduca sozinho 90 s depois de o programa deixar de o renovar
 - [x] Testado em SQLite e em PostgreSQL (`tests/test_cadeados.py`)
+- [x] Símbolo do programa (imagem dada pelo Pedro): `scripts/gerar_icone.py` gera
+      `recursos/icone.ico` e `icone.png`; aparece nas janelas, no executável e nos atalhos
+- [x] Executável final ensaiado contra um servidor de teste: atualiza uma base de dados da
+      versão anterior (migração `0004`), duas instâncias ao mesmo tempo, sem transações
+      abertas
 
 
 ### Por validar pelo Pedro (critérios de aceitação)
