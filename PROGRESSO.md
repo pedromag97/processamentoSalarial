@@ -52,7 +52,6 @@ Marco 3: janela principal com navegação e os ecrãs de tabelas e de trabalhado
 | 2026-11-17 | Nº interno atribuído pela app; o nº da `s-27` fica só no relatório de importação. |
 | 2026-11-17 | Auditoria usa o utilizador do Windows. |
 | 2026-11-17 | O fecho do mês grava uma fotografia das rubricas (a fazer no marco 6). |
-
 | 2026-11-18 | O Pedro mandou avançar com o marco 2 usando os pressupostos abaixo. |
 
 ## Pressupostos do cálculo (assumidos em 2026-11-18, por confirmar com o contabilista)
