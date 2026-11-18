@@ -287,8 +287,34 @@ class FechoMes(Base):
     data: Mapped[datetime | None] = mapped_column(DateTime)
     utilizador: Mapped[str | None] = mapped_column(String(80))
     nota: Mapped[str | None] = mapped_column(String(250))
+    # Fotografia tirada no fecho (JSON): parâmetros, feriados e códigos usados nesse mês.
+    fotografia: Mapped[str | None] = mapped_column(Text)
 
     empresa: Mapped[Empresa] = relationship()
+    linhas: Mapped[list["FechoTrabalhador"]] = relationship(
+        back_populates="fecho", cascade="all, delete-orphan", order_by="FechoTrabalhador.numero"
+    )
+
+
+class FechoTrabalhador(Base):
+    """Fotografia do mapa de um trabalhador no momento do fecho (rubricas, contagens e dias).
+
+    É daqui que saem o Excel e os PDF de um mês fechado, para não mudarem se depois se alterar
+    um salário, um parâmetro ou o nome de alguém.
+    """
+
+    __tablename__ = "fecho_trabalhador"
+    __table_args__ = (UniqueConstraint("fecho_id", "trabalhador_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fecho_id: Mapped[int] = mapped_column(ForeignKey("fecho_mes.id"))
+    trabalhador_id: Mapped[int] = mapped_column(ForeignKey("trabalhador.id"))
+    numero: Mapped[int] = mapped_column(Integer)
+    nome: Mapped[str] = mapped_column(String(120))
+    total: Mapped[Decimal] = mapped_column(Valor)
+    dados: Mapped[str] = mapped_column(Text)  # JSON do mapa (ver mapa.py)
+
+    fecho: Mapped[FechoMes] = relationship(back_populates="linhas")
 
 
 class Auditoria(Base):

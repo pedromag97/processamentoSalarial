@@ -49,7 +49,8 @@ dentro do Claude Code, as variáveis do `ambiente.ps1` podem ser definidas à m�
 ## Stack
 
 - Python 3.12 (gerido pelo `uv`; versões fixas no `uv.lock`), PySide6, SQLite com SQLAlchemy 2.x
-  e Alembic, `openpyxl`, `reportlab`, `pytest`, `ruff`. PyInstaller no marco 7.
+  e Alembic, `openpyxl`, `reportlab`, `pytest`, `ruff`; `pypdf` só nos testes (ler os PDF
+  gerados). PyInstaller no marco 7.
 - Repositório: `github.com/pedromag97/processamentoSalarial` (privado), branch `main`.
 
 ## Comandos
@@ -79,6 +80,11 @@ src/lsc_presencas/
   preprocessamento.py  lê a base de dados e chama o calculo.py
   presencas.py    marcações: interpretar células, gravar com auditoria, meses fechados
   importacao.py   importação única da s-27: ler, planear (duplicados) e gravar, com relatório
+  mapa.py         mapa do mês de uma empresa (MapaMes): base do ecrã de fecho, do Excel e dos PDF
+  fecho.py        alertas, fechar (fotografia + backup) e reabrir (motivo obrigatório)
+  lancamentos.py  auditoria e bloqueio de mês fechado nos lançamentos manuais
+  backups.py      cópias de segurança da base de dados (últimas 30)
+  exportacao.py   gera os ficheiros do mês; exportar_excel.py e exportar_pdf.py fazem cada um
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -88,6 +94,7 @@ src/lsc_presencas/
     ecra_tabelas.py, ecra_trabalhadores.py
     grelha.py       modelos da grelha de presenças e do rodapé de totais por dia
     ecra_presencas.py  dashboard: três tabelas sincronizadas, teclado, filtros
+    ecra_lancamentos.py, ecra_fecho.py, periodo.py (seletor de mês)
     formatos.py     texto <-> números e datas (vírgula decimal, dd/mm/aaaa)
 scripts/          ambiente.ps1, seed_demo.py
 tests/
@@ -106,8 +113,19 @@ tests/
 - **Trabalhador pode não ter empresa** (logo após a importação); o nº interno é atribuído pela
   app, porque o nº da folha `s-27` repete-se entre blocos.
 - **Auditoria sem login:** "quem" é o utilizador do Windows.
-- **Fecho do mês** vai gravar uma fotografia das rubricas calculadas (marco 6), para o Excel e
-  os PDF baterem certo e não mudarem depois.
+- **Fecho do mês:** `fecho.fechar()` grava uma fotografia em JSON (`FechoMes.fotografia` e uma
+  linha `FechoTrabalhador` por pessoa). `fecho.mapa_do_mes()` devolve a fotografia se o mês
+  estiver fechado e o cálculo ao vivo se estiver aberto; o Excel e os PDF saem sempre desse
+  `MapaMes`, por isso batem certo e não mudam depois. Erros impedem o fecho; avisos pedem
+  confirmação. Reabrir exige motivo, apaga a fotografia e fica na auditoria. Há backup antes
+  de fechar e antes de reabrir.
+- **Lançamentos manuais:** gravam-se pela tabela genérica com o gancho `ao_gravar`
+  (`lancamentos.registar`), que escreve a auditoria e recusa meses fechados.
+- **Ficheiros gerados:** `saidas\AAAA-MM_<EMPRESA>\` na pasta da app (nunca no repositório).
+  Mês aberto = pasta e ficheiros marcados como provisórios.
+- **Testes:** o `conftest.py` aponta `LSC_APP_DIR` para uma pasta temporária (nenhum teste
+  escreve na pasta de dados verdadeira) e faz `gc.collect()` no fim de cada teste, para os
+  ecrãs Qt serem destruídos antes de o Python sair.
 - **Cálculo:** `calculo.calcular_mes()` devolve um `Resultado` com rubricas (cada uma com a
   fórmula em texto), contagens e alertas. Um valor em falta nunca vira zero: a rubrica fica com
   `total=None`, o resultado fica `incompleto` e há um alerta. Os pressupostos assumidos estão

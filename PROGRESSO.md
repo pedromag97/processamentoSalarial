@@ -2,7 +2,7 @@
 
 ## Marco atual
 
-**Marco 5 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 6.
+**Marco 6 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 7.
 
 A importação real ainda **não foi feita**: só se ensaiou a leitura do Excel real (sem gravar).
 Fica para o Pedro a fazer no PC do escritório, pelo assistente.
@@ -12,8 +12,8 @@ confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Marco 6: fecho do mês por empresa (alertas, pré-visualização, fechar/reabrir com motivo,
-fotografia das rubricas) e exportação para Excel e PDF.
+Marco 7: relatórios (mapa anual de férias, dias por cliente e viatura, mapa de prevenção),
+backup ao abrir a app, ecrã de auditoria e histórico na ficha, e empacotamento com PyInstaller.
 
 ## Checklist
 
@@ -71,9 +71,21 @@ fotografia das rubricas) e exportação para Excel e PDF.
       `erro.log` na pasta da app e para uma caixa de mensagem
 - [ ] Importação real, pelo Pedro
 
+### Marco 6 — fecho do mês, alertas, Excel e PDF
+- [x] Migração `0002`: fotografia do fecho (`fecho_mes.fotografia` e tabela `fecho_trabalhador`)
+- [x] `mapa.py`: o mapa do mês de uma empresa (o mesmo objeto para o ecrã, o Excel e os PDF)
+- [x] `fecho.py`: alertas, fechar (recusa com erros, pede confirmação dos avisos), reabrir com
+      motivo obrigatório; tudo registado na auditoria
+- [x] `backups.py`: cópia de segurança antes de fechar e antes de reabrir (ficam as últimas 30)
+- [x] `lancamentos.py` e ecrã «Lançamentos»: por mês, com auditoria e bloqueio do mês fechado
+- [x] Ecrã «Fecho do mês»: alertas, totais por trabalhador, Fechar, Reabrir, Exportar
+- [x] Excel-resumo (`Resumo`, `Marcações`, `Parâmetros`) e PDF por trabalhador + PDF conjunto,
+      em `saidas\AAAA-MM_<EMPRESA>\` na pasta da app
+- [x] Teste do critério "os totais do Excel batem certo com a soma dos PDF" (lê os PDF gerados)
+- [ ] Por ver pelo Pedro: o aspeto do PDF e as colunas do Excel-resumo
+
 ### Marcos seguintes
-- [ ] 6 — Fecho do mês, alertas, Excel e PDF
-- [ ] 7 — Relatórios, backups, auditoria, PyInstaller
+- [ ] 7 — Relatórios, backups ao abrir, ecrã de auditoria, PyInstaller
 
 ## Decisões tomadas
 
@@ -88,6 +100,9 @@ fotografia das rubricas) e exportação para Excel e PDF.
 | 2026-11-17 | Auditoria usa o utilizador do Windows. |
 | 2026-11-17 | O fecho do mês grava uma fotografia das rubricas (a fazer no marco 6). |
 | 2026-11-18 | O Pedro mandou avançar com o marco 2 usando os pressupostos abaixo. |
+| 2026-11-18 | Fecho: erros impedem fechar; avisos pedem um visto de confirmação. Reabrir apaga a fotografia (fica no backup feito antes). |
+| 2026-11-18 | Um mês aberto pode ser exportado, mas os ficheiros saem marcados "PROVISÓRIO" e numa pasta própria. |
+| 2026-11-18 | Entram no fecho de uma empresa os trabalhadores ativos com contrato no mês e quem tiver marcações ou lançamentos nesse mês. |
 
 ## Pressupostos do cálculo (assumidos em 2026-11-18, por confirmar com o contabilista)
 
@@ -125,8 +140,14 @@ Estão implementados e testados em `calculo.py`. Se algum estiver errado, muda-s
 - As zonas importadas (`45 Orleans`, `64 Biarritz`) ficam com o país França.
 - Há um par de nomes repetidos dentro do próprio bloco 1 (linhas 11 e 12).
 
+### Do fecho (assumido em 2026-11-18)
+- Adiantamentos e descontos escrevem-se com sinal menos; o ecrã avisa se estiverem positivos.
+  Preferes que a app troque o sinal sozinha?
+- O PDF não mostra os alertas do trabalhador (só a nota de rubricas por calcular). Está bem?
+- Trabalhadores sem empresa não entram em nenhum fecho (há um aviso no ecrã).
+
 ### Outras
-- Um trabalhador pode mudar de empresa a meio do ano?
+- Um trabalhador pode mudar de empresa a meio do ano? (Hoje o fecho usa a empresa atual.)
 - Fins de semana sem marcação geram alerta ou são normais?
 - O código antigo `s` não aparece na folha de 2027; só interessa se se importarem anos anteriores.
 

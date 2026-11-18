@@ -201,6 +201,41 @@ COLUNAS_SALARIO = [
 ]
 
 
+TIPOS_LANCAMENTO = [
+    ("adiantamento", "Adiantamento"),
+    ("desconto", "Desconto"),
+    ("premio", "Prémio"),
+    ("outro", "Outro"),
+]
+
+
+def trabalhadores(sessao: Session):
+    linhas = sessao.execute(
+        select(Trabalhador.id, Trabalhador.nome, Trabalhador.numero).order_by(Trabalhador.nome)
+    )
+    return [(id_, f"{nome} (n.º {numero})") for id_, nome, numero in linhas]
+
+
+def empresa_do_lancamento(lancamento):
+    t = lancamento.trabalhador
+    return t.empresa.nome if t is not None and t.empresa is not None else None
+
+
+COLUNAS_LANCAMENTO = [
+    Coluna("trabalhador_id", "Trabalhador", ESCOLHA, obrigatorio=True, escolhas=trabalhadores),
+    Coluna("empresa", "Empresa", obter=empresa_do_lancamento),
+    Coluna("tipo", "Tipo", ESCOLHA, obrigatorio=True, escolhas=_fixas(TIPOS_LANCAMENTO)),
+    Coluna("descricao", "Descrição", obrigatorio=True),
+    Coluna(
+        "valor",
+        "Valor (€)",
+        DECIMAL,
+        obrigatorio=True,
+        dica="Positivo soma ao total; negativo subtrai (ex.: adiantamento de 100 € = -100).",
+    ),
+]
+
+
 def preparar_trabalhador(trabalhador: Trabalhador, sessao: Session) -> None:
     """Valores iniciais de um trabalhador novo: o nº interno seguinte."""
     maximo = sessao.scalar(select(func.max(Trabalhador.numero))) or 0

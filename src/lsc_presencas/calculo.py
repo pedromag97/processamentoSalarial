@@ -115,6 +115,7 @@ class Rubrica:
     formula: str
     isento: Decimal | None = None  # None = sem separação (não se aplica ou falta o limite)
     sujeito: Decimal | None = None
+    tipo: str | None = None  # só nos lançamentos manuais: adiantamento, desconto, prémio, outro
 
 
 @dataclass(frozen=True)
@@ -311,6 +312,7 @@ def calcular_mes(
                 None,
                 arredondar(Decimal(lanc.valor)),
                 "Lançamento manual",
+                tipo=lanc.tipo,
             )
         )
 

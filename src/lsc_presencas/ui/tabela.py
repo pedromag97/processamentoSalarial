@@ -130,6 +130,7 @@ class ModeloTabela(QAbstractTableModel):
         *,
         consulta: Callable[[], Any] | None = None,
         ao_criar: Callable[[Any, Session], None] | None = None,
+        ao_gravar: Callable[[Session, Any, str], None] | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -138,6 +139,9 @@ class ModeloTabela(QAbstractTableModel):
         self.colunas = colunas
         self._consulta = consulta
         self._ao_criar = ao_criar
+        # Chamado antes de cada gravação com a ação («criar», «alterar» ou «apagar»), para
+        # validar e registar a auditoria. Se levantar ValueError, a alteração é desfeita.
+        self._ao_gravar = ao_gravar
         self.linhas: list[Any] = []
         self._pendentes: set[int] = set()
         self.opcoes: dict[int, list[tuple[Any, str]]] = {}
@@ -289,9 +293,14 @@ class ModeloTabela(QAbstractTableModel):
             if not self._completo(obj):
                 return
             self.sessao.add(obj)
+            if self._ao_gravar:
+                self.sessao.flush()
+                self._ao_gravar(self.sessao, obj, "criar")
             self.sessao.commit()
             self._pendentes.discard(id(obj))
         else:
+            if self._ao_gravar:
+                self._ao_gravar(self.sessao, obj, "alterar")
             self.sessao.commit()
 
     # --- Criar e apagar ---
@@ -315,9 +324,11 @@ class ModeloTabela(QAbstractTableModel):
         obj = self.linhas[linha]
         if not self.pendente(obj):
             try:
+                if self._ao_gravar:
+                    self._ao_gravar(self.sessao, obj, "apagar")
                 self.sessao.delete(obj)
                 self.sessao.commit()
-            except (IntegrityError, SQLAlchemyError) as erro:
+            except (ValueError, IntegrityError, SQLAlchemyError) as erro:
                 self.sessao.rollback()
                 self.erro.emit(mensagem_de_erro(erro))
                 return False

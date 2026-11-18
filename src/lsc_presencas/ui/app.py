@@ -19,7 +19,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .. import __version__, config
 from ..modelos import CodigoPresenca, Empresa, Feriado, Marcacao, Trabalhador
+from .ecra_fecho import EcraFecho
 from .ecra_importacao import AssistenteImportacao
+from .ecra_lancamentos import EcraLancamentos
 from .ecra_presencas import EcraPresencas
 from .ecra_tabelas import EcraTabelas
 from .ecra_trabalhadores import EcraTrabalhadores
@@ -75,6 +77,8 @@ class JanelaPrincipal(QMainWindow):
 
         self.ecras: dict[str, QWidget] = {
             "Presenças": EcraPresencas(self.sessao),
+            "Lançamentos": EcraLancamentos(self.sessao),
+            "Fecho do mês": EcraFecho(self.sessao),
             "Trabalhadores": EcraTrabalhadores(self.sessao),
             "Tabelas": EcraTabelas(self.sessao),
             "Base de dados": EcraInicio(self.sessao),
