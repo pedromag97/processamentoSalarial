@@ -2,14 +2,15 @@
 
 ## Marco atual
 
-**Marco 2 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 3.
+**Marco 3 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 4.
 
-O cálculo foi feito com pressupostos (lista abaixo) que o Pedro mandou assumir; falta
+O cálculo (marco 2) foi feito com pressupostos (lista abaixo) que o Pedro mandou assumir; falta
 confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Marco 3: janela principal com navegação e os ecrãs de tabelas e de trabalhadores.
+Marco 4: dashboard de presenças (grelha mensal e semanal, edição por teclado, colar intervalos,
+filtros, totais e desfazer).
 
 ## Checklist
 
@@ -33,8 +34,16 @@ Marco 3: janela principal com navegação e os ecrãs de tabelas e de trabalhado
 - [x] Validações e alertas
 - [x] `preprocessamento.py`: lê a base de dados e chama o cálculo
 
+### Marco 3 — ecrãs de tabelas e trabalhadores
+- [x] Janela principal com navegação (Início, Trabalhadores, Tabelas)
+- [x] Tabela editável genérica (`ui/tabela.py`): gravação célula a célula, linha nova pendente
+      até ter os campos obrigatórios, mensagens de erro, aviso de valores por preencher
+- [x] Tabelas: empresas, clientes, viaturas, zonas, códigos, feriados, parâmetros com vigência
+- [x] Trabalhadores: lista com pesquisa e filtro de inativos; ficha com dados, valores de
+      exceção e histórico do salário base
+- [ ] Ficha: histórico de alterações (fica para o marco 7, com a auditoria)
+
 ### Marcos seguintes
-- [ ] 3 — Ecrãs de tabelas e trabalhadores
 - [ ] 4 — Dashboard de presenças
 - [ ] 5 — Importação da `s-27` (inclui o Excel fictício em `tests/fixtures/`)
 - [ ] 6 — Fecho do mês, alertas, Excel e PDF

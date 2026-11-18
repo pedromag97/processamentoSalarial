@@ -78,6 +78,11 @@ src/lsc_presencas/
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
+    app.py          janela principal e navegação
+    tabela.py       tabela editável e formulário genéricos (Coluna, ModeloTabela, VistaTabela)
+    definicoes.py   colunas de cada tabela: é aqui que se acrescenta um campo aos ecrãs
+    ecra_tabelas.py, ecra_trabalhadores.py
+    formatos.py     texto <-> números e datas (vírgula decimal, dd/mm/aaaa)
 scripts/          ambiente.ps1, seed_demo.py
 tests/
 ```
@@ -101,6 +106,9 @@ tests/
   fórmula em texto), contagens e alertas. Um valor em falta nunca vira zero: a rubrica fica com
   `total=None`, o resultado fica `incompleto` e há um alerta. Os pressupostos assumidos estão
   no `PROGRESSO.md` e ainda não foram confirmados com o contabilista.
+- **Interface:** uma única sessão SQLAlchemy para toda a janela (`expire_on_commit=True`). Os
+  erros aparecem numa linha por baixo da tabela, não em caixas modais (também para os testes
+  correrem em `offscreen`). Os ecrãs testam-se pelo modelo (`setData`), sem simular cliques.
 - **Dados base** (códigos, feriados) são carregados por `carregar_dados_base()`, que só
   acrescenta o que falta e nunca repõe o que o utilizador editou.
 - Migrações com `render_as_batch=True` (SQLite) e um teste que falha se o modelo mudar sem
