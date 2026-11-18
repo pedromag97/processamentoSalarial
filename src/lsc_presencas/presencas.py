@@ -12,8 +12,10 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from . import concorrencia
 from .modelos import (
     FECHO_FECHADO,
     Auditoria,
@@ -46,6 +48,17 @@ class Alteracao:
 
 class MesFechado(Exception):
     """Tentativa de alterar marcações de um mês fechado."""
+
+
+class Conflito(Exception):
+    """Outra pessoa alterou entretanto as mesmas células. Não foi gravado nada."""
+
+    def __init__(self, celulas: int):
+        self.celulas = celulas
+        super().__init__(
+            f"{celulas} célula(s) foram alteradas por outra pessoa entretanto. Não gravei "
+            "nada: a grelha foi atualizada, confirme e repita."
+        )
 
 
 def utilizador_atual() -> str:
@@ -154,12 +167,20 @@ def _descrever(numero: int, dia: date, codigo: str | None, horas: Decimal | None
 
 
 def aplicar_alteracoes(
-    sessao: Session, alteracoes: Iterable[Alteracao], utilizador: str | None = None
+    sessao: Session,
+    alteracoes: Iterable[Alteracao],
+    utilizador: str | None = None,
+    *,
+    esperados: dict[tuple[int, date], Estado] | None = None,
 ) -> list[Alteracao]:
     """Grava um conjunto de alterações de uma vez (tudo ou nada) e regista-as na auditoria.
 
     Devolve o estado anterior das células que mudaram de facto, para se poder desfazer.
     Levanta `MesFechado` (sem gravar nada) se alguma célula for de um mês fechado.
+
+    `esperados` é o que quem pede estava a ver em cada célula. Se alguma já não estiver
+    assim na base de dados (outra pessoa alterou-a entretanto), levanta `Conflito` e não
+    grava nada, para ninguém apagar o trabalho de outra pessoa sem dar por isso.
     """
     pedidas = {(a.trabalhador_id, a.data): a.estado for a in alteracoes}
     if not pedidas:
@@ -170,6 +191,8 @@ def aplicar_alteracoes(
         trabalhadores = {
             t.id: t for t in sessao.scalars(select(Trabalhador).where(Trabalhador.id.in_(ids)))
         }
+        # Enquanto alguém fecha um mês, espera-se; depois vê-se o mês já fechado.
+        concorrencia.alterar_marcacoes(sessao)
         fechados = meses_fechados(sessao)
         for tid, dia in pedidas:
             if (trabalhadores[tid].empresa_id, dia.year, dia.month) in fechados:
@@ -182,12 +205,25 @@ def aplicar_alteracoes(
         existentes = {
             (m.trabalhador_id, m.data): m
             for m in sessao.scalars(
-                select(Marcacao).where(
+                select(Marcacao)
+                .where(
                     Marcacao.trabalhador_id.in_(ids),
                     Marcacao.data.between(min(datas), max(datas)),
                 )
+                .with_for_update()  # no servidor, ninguém mexe nestas linhas até ao commit
+                .execution_options(populate_existing=True)
             )
         }
+        if esperados is not None:
+            diferentes = 0
+            for chave in pedidas:
+                if chave not in esperados:
+                    continue
+                marcacao = existentes.get(chave)
+                agora: Estado = (marcacao.codigo_id, marcacao.horas_extra) if marcacao else None
+                diferentes += agora != esperados[chave]
+            if diferentes:
+                raise Conflito(diferentes)
         nomes = {
             id_: codigo
             for id_, codigo in sessao.execute(select(CodigoPresenca.id, CodigoPresenca.codigo))
@@ -233,6 +269,10 @@ def aplicar_alteracoes(
             )
             anteriores.append(Alteracao(tid, dia, antes))
         sessao.commit()
+    except IntegrityError:
+        # Duas pessoas criaram a marcação da mesma célula no mesmo instante.
+        sessao.rollback()
+        raise Conflito(1) from None
     except Exception:
         sessao.rollback()
         raise

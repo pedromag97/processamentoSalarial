@@ -11,7 +11,7 @@ from datetime import date, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import backups, calculo, contas, mapa
+from . import backups, calculo, concorrencia, contas, mapa
 from .modelos import (
     FECHO_ABERTO,
     FECHO_FECHADO,
@@ -148,8 +148,11 @@ def fechar(
     """
     contas.exigir_admin("fechar o mês")
     utilizador = utilizador or utilizador_atual()
-    try:
+
+    def verificar() -> tuple[FechoMes | None, mapa.MapaMes]:
         fecho = registo(sessao, empresa_id, ano, mes)
+        if fecho is not None:
+            sessao.refresh(fecho)  # outra pessoa pode tê-lo fechado entretanto
         if fecho is not None and fecho.estado == FECHO_FECHADO:
             raise FechoRecusado("Este mês já está fechado.")
         do_mes = mapa.construir(sessao, empresa_id, ano, mes)
@@ -160,9 +163,20 @@ def fechar(
             )
         if avisos and not confirmado:
             raise FechoPorConfirmar(f"Há {avisos} aviso(s). Confirme que os viu para fechar o mês.")
+        return fecho, do_mes
+
+    try:
+        verificar()  # recusa já, antes de fazer a cópia de segurança
         if com_backup:
             sessao.commit()  # nada pendente: liberta a base de dados para a cópia
             backups.fazer_backup(sessao.get_bind(), f"fecho-{ano}-{mes:02d}")
+
+        # A partir daqui ninguém grava marcações nem lançamentos até ao commit; volta-se a
+        # calcular, para a fotografia incluir o que os outros gravaram até este instante.
+        sessao.commit()
+        concorrencia.fechar_ou_reabrir(sessao)
+        sessao.expire_all()
+        fecho, do_mes = verificar()
 
         agora = datetime.now()
         if fecho is None:
@@ -237,6 +251,11 @@ def reabrir(
         if com_backup:
             sessao.commit()
             backups.fazer_backup(sessao.get_bind(), f"reabertura-{ano}-{mes:02d}")
+        sessao.commit()
+        concorrencia.fechar_ou_reabrir(sessao)
+        sessao.refresh(fecho)
+        if fecho.estado != FECHO_FECHADO:
+            raise FechoRecusado("Este mês não está fechado (outra pessoa já o reabriu).")
         total = sum((x.total for x in fecho.linhas), calculo.ZERO)
         antigo = json.dumps(
             {

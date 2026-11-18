@@ -2,7 +2,7 @@
 
 import sys
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
@@ -18,9 +18,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
-from .. import __version__, backups, config, contas
+from .. import __version__, backups, concorrencia, config, contas
 from ..modelos import (
     PERFIL_ADMIN,
     CodigoPresenca,
@@ -40,6 +41,7 @@ from .ecra_presencas import EcraPresencas
 from .ecra_relatorios import EcraRelatorios
 from .ecra_tabelas import EcraTabelas
 from .ecra_trabalhadores import EcraTrabalhadores
+from .tabela import mensagem_de_erro
 
 
 def resumo_bd(sessao: Session) -> dict[str, int]:
@@ -193,9 +195,28 @@ class JanelaPrincipal(QMainWindow):
         self.navegacao.currentRowChanged.connect(self._mudar_ecra)
         self.navegacao.setCurrentRow(0)
 
+        # Entre operações, a ligação ao servidor não fica a meio de uma transação.
+        self.temporizador = QTimer(self)
+        self.temporizador.setInterval(2000)
+        self.temporizador.timeout.connect(self._libertar_ligacao)
+        self.temporizador.start()
+
+    def _libertar_ligacao(self) -> None:
+        try:
+            concorrencia.libertar_leitura(self.sessao)
+        except SQLAlchemyError:
+            self.sessao.rollback()  # ex.: a rede caiu; a próxima operação volta a ligar
+
     def _mudar_ecra(self, linha: int) -> None:
         ecra = self.pilha.widget(linha)
-        ecra.recarregar()  # os dados podem ter mudado noutro ecrã
+        try:
+            if not (self.sessao.new or self.sessao.dirty or self.sessao.deleted):
+                # Com várias pessoas, o que está em memória pode já ter mudado no servidor.
+                self.sessao.expire_all()
+            ecra.recarregar()  # os dados podem ter mudado noutro ecrã ou noutro PC
+        except SQLAlchemyError as erro:
+            self.sessao.rollback()
+            QMessageBox.warning(self, "LSC Presenças", mensagem_de_erro(erro))
         self.pilha.setCurrentIndex(linha)
 
     def mostrar(self, nome: str) -> QWidget:

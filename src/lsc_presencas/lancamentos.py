@@ -9,6 +9,7 @@ import json
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from . import concorrencia
 from .modelos import Auditoria, LancamentoManual, Trabalhador
 from .presencas import meses_fechados, utilizador_atual
 
@@ -32,6 +33,7 @@ def _descrever(sessao: Session, valores: dict) -> str:
 
 
 def _recusar_se_fechado(sessao: Session, valores: dict) -> None:
+    concorrencia.alterar_marcacoes(sessao)  # espera por um fecho que esteja a decorrer
     empresa_id = sessao.scalar(
         select(Trabalhador.empresa_id).where(Trabalhador.id == valores["trabalhador_id"])
     )

@@ -55,7 +55,14 @@ def config_alembic(url: str | None = None) -> Config:
 
 def migrar(url: str | None = None) -> None:
     """Leva a base de dados até à última migração (cria-a se não existir)."""
-    command.upgrade(config_alembic(url), "head")
+    from . import concorrencia
+
+    engine = criar_engine(url)
+    try:
+        with concorrencia.so_um_a_migrar(engine):
+            command.upgrade(config_alembic(url), "head")
+    finally:
+        engine.dispose()
 
 
 def criar_vazia(url: str) -> None:

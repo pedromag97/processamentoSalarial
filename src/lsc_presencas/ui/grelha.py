@@ -23,6 +23,7 @@ from .. import presencas
 from ..modelos import Cliente, CodigoPresenca, Empresa, Feriado, Trabalhador, Viatura
 from ..presencas import Alteracao
 from .formatos import sem_acentos, texto_decimal
+from .tabela import mensagem_de_erro
 
 DIAS_SEMANA = ["2ª", "3ª", "4ª", "5ª", "6ª", "sáb", "dom"]
 MESES = [
@@ -477,21 +478,60 @@ class ModeloGrelha(QAbstractTableModel):
 
     def aplicar_estados(self, alteracoes: list[Alteracao], *, desfazivel: bool = True) -> bool:
         """Grava as alterações, atualiza a grelha e guarda o estado anterior para desfazer."""
+        # O que esta grelha estava a mostrar nas células que vai alterar: se entretanto
+        # outra pessoa as mudou, não se grava por cima.
+        esperados = {}
+        if self.dias:
+            for a in alteracoes:
+                if self.dias[0] <= a.data <= self.dias[-1]:
+                    celula = self.marcacoes.get((a.trabalhador_id, a.data))
+                    esperados[(a.trabalhador_id, a.data)] = (
+                        (celula.codigo_id, celula.horas_extra) if celula else None
+                    )
         try:
-            anteriores = presencas.aplicar_alteracoes(self.sessao, alteracoes)
-        except (presencas.MesFechado, ValueError, SQLAlchemyError) as erro:
+            anteriores = presencas.aplicar_alteracoes(self.sessao, alteracoes, esperados=esperados)
+        except presencas.Conflito as erro:
+            self.atualizar()
             self.erro.emit(str(erro))
+            return False
+        except (presencas.MesFechado, ValueError) as erro:
+            self.atualizar()  # ex.: o mês foi fechado por outra pessoa
+            self.erro.emit(str(erro))
+            return False
+        except SQLAlchemyError as erro:
+            self.sessao.rollback()
+            self.erro.emit(mensagem_de_erro(erro))
             return False
         if anteriores and desfazivel:
             self._desfazer.append(anteriores)
             del self._desfazer[:-LIMITE_DESFAZER]
+        self._mostrar_marcacoes()
+        return True
+
+    def _mostrar_marcacoes(self) -> None:
         self._carregar_marcacoes()
         if self.linhas:
             self.dataChanged.emit(
                 self.index(0, 0), self.index(len(self.linhas) - 1, self.columnCount() - 1)
             )
         self.alterado.emit()
-        return True
+
+    def atualizar(self) -> bool:
+        """Vai buscar o que as outras pessoas gravaram (marcações e meses fechados), sem
+        mexer na seleção nem na posição. Devolve True se alguma coisa mudou.
+
+        Se não houver ligação ao servidor, não muda nada e devolve False.
+        """
+        if not self.dias:
+            return False
+        antes = (self.marcacoes, self.fechados)
+        try:
+            self.fechados = presencas.meses_fechados(self.sessao)
+            self._mostrar_marcacoes()
+        except SQLAlchemyError:
+            self.sessao.rollback()
+            return False
+        return (self.marcacoes, self.fechados) != antes
 
     def aplicar_texto(self, indices, texto: str) -> bool:
         """Aplica o mesmo texto (ex.: «PF» ou «P+2»; vazio = limpar) a várias células."""

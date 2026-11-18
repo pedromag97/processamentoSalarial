@@ -2,8 +2,8 @@
 
 ## Marco atual
 
-**Marco 9 concluído** (2026-11-18): a app funciona sobre um servidor PostgreSQL. À espera da
-aprovação do Pedro para o marco 10.
+**Marco 10 concluído** (2026-11-18): várias pessoas ao mesmo tempo sobre o mesmo servidor. À
+espera da aprovação do Pedro para o marco 11.
 
 Os sete marcos da especificação original estão feitos (versão 1.0.0). A 2026-11-18 o Pedro
 pediu contas de login e uma base de dados única do Grupo LSC, usada por várias pessoas ao
@@ -17,9 +17,10 @@ confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Marco 10: uso em simultâneo. A grelha tem de mostrar o que os outros marcam, duas pessoas na
-mesma célula não se podem atropelar sem aviso, o fecho tem de ser seguro com outros ligados,
-e a sessão da interface não pode ficar com uma transação aberta durante horas.
+Marco 11: instalação. Guia passo a passo do servidor PostgreSQL num PC do escritório, da VPN
+e da cópia de segurança agendada no servidor; executável novo; teste entre dois PCs. O
+executável com os marcos 9 e 10 ainda tem de ser reconstruído e experimentado (o controlador
+do PostgreSQL e o cofre do Windows dentro do `.exe` nunca foram testados).
 
 Em paralelo, o Pedro experimenta a app com dados reais (importação da `s-27`, valores com o
 contabilista, um mês completo, fecho e ficheiros).
@@ -134,6 +135,20 @@ contabilista, um mês completo, fecho e ficheiros).
       de fechar/reabrir um mês e à mão); não há cópia ao abrir
 - [x] Mensagens de erro do PostgreSQL e de falha de rede em português
 - [ ] Por fazer no marco 11: instalar o servidor verdadeiro, a VPN e a cópia agendada no servidor
+
+### Marco 10 — uso em simultâneo
+- [x] Conflitos: a grelha diz o que estava a ver em cada célula; se outra pessoa a mudou
+      entretanto, não grava nada, atualiza-se e avisa (`presencas.Conflito`)
+- [x] A grelha vai buscar as alterações dos outros de 15 em 15 segundos (só com servidor) e
+      com o botão «Atualizar (F5)», sem mexer na seleção nem interromper quem escreve
+- [x] Fecho seguro (`concorrencia.py`): quem fecha ou reabre espera pelas gravações em curso e
+      bloqueia as novas; a fotografia é calculada já com o bloqueio
+- [x] A sessão da interface não fica a meio de uma transação no servidor
+- [x] Ao mudar de ecrã, os dados são lidos de novo do servidor
+- [x] Vários PCs a abrir ao mesmo tempo: as migrações correm num de cada vez
+- [x] Testes com duas sessões e fios de execução sobre PostgreSQL (`tests/test_concorrencia.py`)
+- [ ] Não tratado: duas pessoas a editar a mesma ficha, tabela ou lançamento ao mesmo tempo
+      (fica a última gravação; as fichas e os lançamentos ficam na auditoria)
 
 ### Marcos seguintes (plano aprovado a 2026-11-18)
 - [ ] 10 — Uso em simultâneo: a grelha atualiza-se, conflitos na mesma célula, fecho seguro

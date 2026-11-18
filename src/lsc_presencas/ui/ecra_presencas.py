@@ -7,9 +7,9 @@ Por baixo há um rodapé igual, com as pessoas presentes por dia.
 
 import json
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemDelegate,
@@ -47,6 +47,7 @@ from .grelha import (
 )
 
 LARGURAS_ESQ = [44, 210, 64, 70]
+INTERVALO_ATUALIZACAO_MS = 15_000
 LARGURA_DIA_MES = 36
 LARGURA_DIA_SEMANA = 96
 LARGURAS_DIR = [38, 38, 38, 38, 38, 38, 58]
@@ -324,12 +325,19 @@ class EcraPresencas(QWidget):
         self.botoes_codigo: dict[str, QPushButton] = {}
         self.botao_copiar_semana = QPushButton("Copiar semana anterior")
         self.botao_desfazer = QPushButton("Desfazer (Ctrl+Z)")
+        self.botao_atualizar = QPushButton("Atualizar (F5)")
+        self.botao_atualizar.setShortcut(QKeySequence(Qt.Key.Key_F5))
+        self.botao_atualizar.setToolTip(
+            "Vai buscar as marcações gravadas por outras pessoas. Com um servidor, isto "
+            "acontece sozinho de 15 em 15 segundos."
+        )
         acoes = QHBoxLayout()
         acoes.addWidget(QLabel("Aplicar à seleção:"))
         acoes.addLayout(self.barra_codigos)
         acoes.addStretch(1)
         acoes.addWidget(self.botao_copiar_semana)
         acoes.addWidget(self.botao_desfazer)
+        acoes.addWidget(self.botao_atualizar)
 
         self.estado = QLabel()
         self.estado.setMinimumHeight(18)
@@ -358,6 +366,14 @@ class EcraPresencas(QWidget):
         self.botao_copiar_semana.clicked.connect(self.copiar_semana_anterior)
         self.botao_desfazer.clicked.connect(self.modelo.desfazer)
         self.modelo.erro.connect(self._mostrar_erro)
+
+        # Com um servidor, a grelha vai buscar de tempos a tempos o que os outros gravaram.
+        self.botao_atualizar.clicked.connect(lambda: self.atualizar(manual=True))
+        self.temporizador = QTimer(self)
+        self.temporizador.setInterval(INTERVALO_ATUALIZACAO_MS)
+        self.temporizador.timeout.connect(self.atualizar)
+        if sessao.get_bind().dialect.name != "sqlite":
+            self.temporizador.start()
         self.modelo.alterado.connect(self._depois_de_alterar)
         self.totais.modelReset.connect(self._ajustar_rodape)
 
@@ -492,6 +508,22 @@ class EcraPresencas(QWidget):
                 f"Copiei {copiadas} marcações para a semana de {segunda:%d/%m} a {domingo:%d/%m}. "
                 "Ctrl+Z desfaz."
             )
+
+    def atualizar(self, manual: bool = False) -> bool:
+        """Mostra o que as outras pessoas gravaram entretanto. Não interrompe quem está a
+        escrever numa célula nem mexe na seleção. Devolve True se alguma coisa mudou."""
+        if not manual and (not self.isVisible() or self.dias.a_editar()):
+            return False
+        mudou = self.modelo.atualizar()
+        if mudou:
+            self.estado.setStyleSheet("color:#1B6E1B;")
+            self.estado.setText(
+                f"Atualizado às {datetime.now():%H:%M:%S}: há alterações de outra pessoa."
+            )
+        elif manual:
+            self.estado.setStyleSheet("")
+            self.estado.setText(f"Atualizado às {datetime.now():%H:%M:%S}: sem alterações.")
+        return mudou
 
     def _mostrar_erro(self, mensagem: str) -> None:
         self.estado.setStyleSheet("color:#B00020;")

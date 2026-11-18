@@ -94,6 +94,7 @@ src/lsc_presencas/
   contas.py       contas de login: palavras-passe, autenticar, perfis, sessão em curso
   transferencia.py  copiar todos os dados entre duas bases de dados
   servidor.py     ligar a um servidor PostgreSQL (testar, preparar, enviar os dados locais)
+  concorrencia.py bloqueios entre pessoas (marcações/fecho, migrações) e libertar a ligação
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -155,9 +156,15 @@ tests/
   (envio inicial para o servidor e cópias de segurança servidor → ficheiro SQLite). Nunca se
   substituem dados do servidor sem `substituir=True`. Código novo tem de funcionar nas duas
   bases: os testes de `tests/test_servidor.py` correm num PostgreSQL verdadeiro (`pgserver`).
-- **Por resolver no marco 10:** a sessão única da interface deixa a ligação "idle in
-  transaction" no servidor; duas pessoas a abrir o programa ao mesmo tempo depois de uma
-  atualização correm as migrações em paralelo.
+- **Uso em simultâneo (marco 10):** `concorrencia.py` usa advisory locks do PostgreSQL (no
+  SQLite não faz nada). Quem grava marcações ou lançamentos pede o bloqueio partilhado antes
+  de ver se o mês está fechado; quem fecha ou reabre pede o exclusivo e recalcula já com ele.
+  `presencas.aplicar_alteracoes(esperados=...)` recusa com `Conflito` se a célula já não
+  estiver como quem pede a via. A grelha chama `atualizar()` por temporizador (só com
+  servidor) e nunca faz reset do modelo nessa atualização. A janela chama
+  `concorrencia.libertar_leitura()` de 2 em 2 s para não deixar transações abertas, e faz
+  `expire_all()` ao mudar de ecrã. Qualquer operação nova que dependa de "o mês está
+  aberto" tem de pedir o bloqueio partilhado primeiro.
 - **Atenção ao `%LOCALAPPDATA%` dentro da app Claude (Windows):** o que o Claude Code grava aí
   é redirecionado para `AppData\Local\Packages\Claude_…\LocalCache\Local\`. Por isso o venv,
   a base de dados de desenvolvimento e a pasta `dist` das sessões do Claude não são os mesmos
