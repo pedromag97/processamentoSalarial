@@ -73,6 +73,8 @@ src/lsc_presencas/
   modelos.py      modelo de dados
   dados_base.py   códigos de presença e feriados nacionais (carregamento idempotente)
   consultas.py    vigências (parâmetros e salário em vigor num dia)
+  calculo.py      cálculo do mês de um trabalhador; puro, sem base de dados nem interface
+  preprocessamento.py  lê a base de dados e chama o calculo.py
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -95,6 +97,10 @@ tests/
 - **Auditoria sem login:** "quem" é o utilizador do Windows.
 - **Fecho do mês** vai gravar uma fotografia das rubricas calculadas (marco 6), para o Excel e
   os PDF baterem certo e não mudarem depois.
+- **Cálculo:** `calculo.calcular_mes()` devolve um `Resultado` com rubricas (cada uma com a
+  fórmula em texto), contagens e alertas. Um valor em falta nunca vira zero: a rubrica fica com
+  `total=None`, o resultado fica `incompleto` e há um alerta. Os pressupostos assumidos estão
+  no `PROGRESSO.md` e ainda não foram confirmados com o contabilista.
 - **Dados base** (códigos, feriados) são carregados por `carregar_dados_base()`, que só
   acrescenta o que falta e nunca repõe o que o utilizador editou.
 - Migrações com `render_as_batch=True` (SQLite) e um teste que falha se o modelo mudar sem

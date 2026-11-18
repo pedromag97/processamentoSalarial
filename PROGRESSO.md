@@ -2,12 +2,14 @@
 
 ## Marco atual
 
-**Marco 1 concluído** (2026-11-17), à espera da aprovação do Pedro para começar o marco 2.
+**Marco 2 concluído** (2026-11-18), à espera da aprovação do Pedro para começar o marco 3.
+
+O cálculo foi feito com pressupostos (lista abaixo) que o Pedro mandou assumir; falta
+confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Obter do Pedro as respostas às dúvidas que bloqueiam o marco 2 (lista abaixo) e escrever o
-`calculo.py` com os testes.
+Marco 3: janela principal com navegação e os ecrãs de tabelas e de trabalhadores.
 
 ## Checklist
 
@@ -22,13 +24,14 @@ Obter do Pedro as respostas às dúvidas que bloqueiam o marco 2 (lista abaixo) 
 - [x] Janela principal mínima (mostra o estado da base de dados)
 
 ### Marco 2 — `calculo.py`
-- [ ] Contagens por código, respeitando admissão e saída
-- [ ] Salário base processado (descontos e proporcional)
-- [ ] Subsídio de alimentação e ajuda de custo França (isento/sujeito, limite vazio ou preenchido)
-- [ ] Prevenção
-- [ ] Horas extra (dia útil, descanso, feriado)
-- [ ] Lançamentos manuais e total ilíquido estimado
-- [ ] Validações e alertas
+- [x] Contagens por código, respeitando admissão e saída
+- [x] Salário base processado (descontos e proporcional)
+- [x] Subsídio de alimentação e ajuda de custo França (isento/sujeito, limite vazio ou preenchido)
+- [x] Prevenção
+- [x] Horas extra (dia útil, descanso, feriado)
+- [x] Lançamentos manuais e total ilíquido estimado
+- [x] Validações e alertas
+- [x] `preprocessamento.py`: lê a base de dados e chama o cálculo
 
 ### Marcos seguintes
 - [ ] 3 — Ecrãs de tabelas e trabalhadores
@@ -50,19 +53,34 @@ Obter do Pedro as respostas às dúvidas que bloqueiam o marco 2 (lista abaixo) 
 | 2026-11-17 | Auditoria usa o utilizador do Windows. |
 | 2026-11-17 | O fecho do mês grava uma fotografia das rubricas (a fazer no marco 6). |
 
-## Dúvidas em aberto
+| 2026-11-18 | O Pedro mandou avançar com o marco 2 usando os pressupostos abaixo. |
 
-### Bloqueiam o marco 2 (regras de cálculo)
-1. PR "conforme zona": dá ajuda de custo quando a zona da marcação é em França?
-2. Proporcional de entrada/saída: dias de calendário de contrato ÷ 30, com teto no salário base?
-3. Feriados: quem trabalha em França num feriado português tem +50% nas horas extra? E os
-   feriados franceses contam?
-4. Os limites de isenção são valores por dia (subsídio e ajuda de custo)?
-5. Horas extra em dia útil: a "1.ª hora" é por dia?
-6. Se PF acumula o subsídio de alimentação (por defeito: não).
-7. Se FJ desconta o salário (por defeito: não).
-8. Como tratar o AT: é pago pela seguradora, mas deve aparecer no mapa.
-9. Há contrato coletivo que altere os acréscimos de horas extra?
+## Pressupostos do cálculo (assumidos em 2026-11-18, por confirmar com o contabilista)
+
+Estão implementados e testados em `calculo.py`. Se algum estiver errado, muda-se aí.
+
+1. **PR "conforme zona":** dá ajuda de custo só quando a zona da marcação é em França.
+2. **Proporcional de entrada/saída:** salário base ÷ divisor × dias de calendário de contrato,
+   sem nunca passar do salário base. Mês de contrato completo = salário base inteiro.
+3. **Feriados:** contam só os feriados portugueses da tabela (o contrato é português). Horas
+   extra num feriado português têm o acréscimo de descanso/feriado, mesmo a trabalhar em França.
+   Os feriados franceses não contam.
+4. **Limites de isenção:** são valores por dia. Isento = dias × mínimo(valor, limite).
+5. **Horas extra em dia útil:** a "1.ª hora" conta-se por dia.
+6. **PF não acumula subsídio de alimentação** (flag editável no código PF).
+7. **FJ não desconta o salário** (flag editável no código FJ).
+8. **AT:** desconta o salário como a baixa e aparece nas contagens e na descrição do desconto.
+   Não há rubrica própria para o que a seguradora paga.
+9. **Acréscimos de horas extra:** os da especificação (25%, 37,5%, 50%), editáveis nos parâmetros.
+   Não se assumiu nenhum contrato coletivo.
+10. **Valor/hora de exceção:** substitui o valor/hora calculado; os acréscimos aplicam-se na mesma.
+11. **Desconto por faltas:** nunca ultrapassa o salário do período (o salário não fica negativo).
+12. **Salário e parâmetros com vigência:** usa-se o que está em vigor no último dia de contrato
+    dentro do mês (uma mudança a meio do mês não é repartida).
+13. **Rubricas sem dias não aparecem**, e por isso não geram alerta de parâmetro em falta.
+14. **Horas extra num código não trabalhado** (ex.: `FE+2`) são pagas, mas pedem confirmação.
+
+## Dúvidas em aberto
 
 ### Não bloqueiam (valores a preencher na app)
 - Subsídio de alimentação, ajuda de custo França e prevenção, por empresa.
