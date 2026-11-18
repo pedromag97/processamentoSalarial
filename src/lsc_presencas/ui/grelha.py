@@ -243,7 +243,7 @@ class ModeloGrelha(QAbstractTableModel):
                     CodigoPresenca.ajuda_custo_franca,
                     CodigoPresenca.desconta_salario,
                     CodigoPresenca.soma_prevencao,
-                )
+                ).order_by(CodigoPresenca.ordem, CodigoPresenca.codigo)
             )
         }
         self.por_codigo = {info.codigo: info for info in self.codigos.values()}
@@ -327,6 +327,18 @@ class ModeloGrelha(QAbstractTableModel):
         if linha.tipo != TRABALHADOR or dia is None:
             return None
         return linha.trab, dia
+
+    def codigos_para_escolher(self) -> list[InfoCodigo]:
+        """Os códigos ativos, pela ordem da tabela (para a lista pendente das células)."""
+        return [c for c in self.codigos.values() if c.codigo.upper() in self.codigos_ativos]
+
+    def motivo_so_leitura(self, trab: LinhaTrab, dia: date) -> str | None:
+        """Porque é que a célula não pode ser alterada (None se pode)."""
+        if self.fechado(trab, dia):
+            return "Mês fechado: só de leitura"
+        if trab.id in self.cadeados:
+            return f"{CADEADO} {self.cadeados[trab.id].descricao}"
+        return None
 
     def fechado(self, trab: LinhaTrab, dia: date) -> bool:
         return (trab.empresa_id, dia.year, dia.month) in self.fechados
@@ -435,7 +447,10 @@ class ModeloGrelha(QAbstractTableModel):
                     horas = texto_decimal(celula.horas_extra.normalize())
                     partes.append(f"Horas extra neste dia: {horas}")
             else:
-                partes.append("Sem marcação. Escreva um código (ex.: P, PF, PF+2).")
+                partes.append(
+                    "Sem marcação. Escreva um código (ex.: P, PF, PF+2) ou faça duplo clique "
+                    "para escolher da lista."
+                )
             if dia in self.feriados:
                 partes.append(f"Feriado: {self.feriados[dia]}")
             if self.fechado(trab, dia):

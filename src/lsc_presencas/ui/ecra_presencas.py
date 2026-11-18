@@ -10,7 +10,7 @@ from calendar import monthrange
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QKeySequence
+from PySide6.QtGui import QColor, QFont, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemDelegate,
     QAbstractItemView,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
     QStyle,
     QStyledItemDelegate,
@@ -98,8 +99,71 @@ class VistaDias(QTableView):
             modelo.aplicar_texto(self.selectedIndexes(), "")
         elif evento.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not self.a_editar():
             self.descer()
+        elif not self.a_editar() and (
+            evento.key() == Qt.Key.Key_F4
+            or (
+                evento.key() == Qt.Key.Key_Down
+                and evento.modifiers() & Qt.KeyboardModifier.AltModifier
+            )
+        ):
+            self.abrir_lista(self.currentIndex())
         else:
             super().keyPressEvent(evento)
+
+    # --- Lista pendente de códigos (duplo clique, botão direito, F4 ou Alt+seta para baixo) ---
+
+    def mouseDoubleClickEvent(self, evento):
+        indice = self.indexAt(evento.position().toPoint())
+        if self.model().celula(indice) is not None:
+            self.setCurrentIndex(indice)
+            self.abrir_lista(indice)
+        else:
+            super().mouseDoubleClickEvent(evento)
+
+    def contextMenuEvent(self, evento):
+        indice = self.indexAt(evento.pos())
+        if self.model().celula(indice) is None:
+            return
+        if indice not in self.selectedIndexes():
+            self.setCurrentIndex(indice)  # o botão direito fora da seleção passa a ser a seleção
+        self.abrir_lista(indice)
+
+    def menu_de_codigos(self, indice) -> QMenu:
+        """A lista dos códigos para a célula. Escolher um aplica-o a todas as selecionadas."""
+        modelo = self.model()
+        menu = QMenu(self)
+        menu.setToolTipsVisible(True)
+        celula = modelo.celula(indice)
+        if celula is None:
+            return menu
+        motivo = modelo.motivo_so_leitura(*celula)
+        if motivo:
+            menu.addAction(motivo).setEnabled(False)
+            return menu
+
+        alvo = [i for i in self.selectedIndexes() if modelo.celula(i) is not None] or [indice]
+        if indice not in alvo:
+            alvo = [indice]
+        if len(alvo) > 1:
+            menu.addAction(f"Aplicar a {len(alvo)} células:").setEnabled(False)
+        for info in modelo.codigos_para_escolher():
+            cor = QPixmap(14, 14)
+            cor.fill(info.cor)
+            acao = menu.addAction(QIcon(cor), f"{info.codigo}  —  {info.descricao}")
+            acao.setToolTip(info.efeitos)
+            acao.triggered.connect(lambda _=False, c=info.codigo: modelo.aplicar_texto(alvo, c))
+        menu.addSeparator()
+        menu.addAction("Limpar").triggered.connect(lambda: modelo.aplicar_texto(alvo, ""))
+        escrever = menu.addAction("Escrever (para horas extra, ex.: PF+2)…")
+        escrever.triggered.connect(lambda: self.edit(indice))
+        return menu
+
+    def abrir_lista(self, indice) -> None:
+        """Abre a lista por baixo da célula."""
+        if not indice.isValid():
+            return
+        menu = self.menu_de_codigos(indice)
+        menu.exec(self.viewport().mapToGlobal(self.visualRect(indice).bottomLeft()))
 
     def commitData(self, editor):
         # Com várias células selecionadas, o que se escreve aplica-se a todas.
@@ -267,9 +331,9 @@ class EcraPresencas(QWidget):
         self.dias = VistaDias()
         self.dias.setItemDelegate(DelegadoDia(self.dias))
         self.dias.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        # Escrever abre o editor de texto; o duplo clique abre a lista de códigos (ver VistaDias).
         self.dias.setEditTriggers(
-            QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
+            QAbstractItemView.EditTrigger.EditKeyPressed
             | QAbstractItemView.EditTrigger.AnyKeyPressed
         )
         self.grelha = Trio(self.modelo, self.dias)

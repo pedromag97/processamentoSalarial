@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 from PySide6.QtCore import QItemSelection, QItemSelectionModel, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLineEdit
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QLineEdit
 from sqlalchemy import func, select
 
 from lsc_presencas import presencas
@@ -685,3 +685,56 @@ def test_colunas_fixas_podem_ser_alargadas_e_ficam_guardadas(ui, pasta_da_app):
     # Um ficheiro estragado é ignorado.
     (pasta_da_app / "interface.json").write_text("isto não é json")
     assert EcraPresencas(ui).grelha.esq.columnWidth(1) == 210
+
+
+def test_lista_pendente_de_codigos_na_celula(ui):
+    ecra = EcraPresencas(ui)
+    ecra.ir_para(date(2027, 1, 15))
+    modelo, vista = ecra.modelo, ecra.dias
+    celula = indice(modelo, 4, date(2027, 1, 5))
+
+    textos = [a.text() for a in vista.menu_de_codigos(celula).actions() if not a.isSeparator()]
+    # Os códigos ativos pela ordem da tabela, com o significado; depois Limpar e Escrever.
+    assert textos[0].startswith("P  —  Presente em Portugal")
+    assert textos[1].startswith("PF  —  Presente em França")
+    assert len(textos) == 10 + 2 and textos[-2] == "Limpar" and "Escrever" in textos[-1]
+    acoes = {a.text().split("  —  ")[0]: a for a in vista.menu_de_codigos(celula).actions()}
+    assert "desconta no salário base" in acoes["FI"].toolTip()
+    assert not acoes["FE"].icon().isNull()  # o quadrado com a cor do código
+
+    # Escolher um código da lista grava-o, e desfaz-se como qualquer outra alteração.
+    menu = vista.menu_de_codigos(celula)
+    next(a for a in menu.actions() if a.text().startswith("FE ")).trigger()
+    assert modelo.data(celula) == "FE"
+    assert marcacao(ui, 4, date(2027, 1, 5)).codigo.codigo == "FE"
+    modelo.desfazer()
+    assert modelo.data(celula) == "PF"
+
+    # Com várias células selecionadas, a escolha aplica-se a todas.
+    outras = [indice(modelo, 4, date(2027, 1, d)) for d in (5, 6, 7)]
+    for i in outras:
+        vista.selectionModel().select(i, QItemSelectionModel.SelectionFlag.Select)
+    menu = vista.menu_de_codigos(outras[0])
+    assert menu.actions()[0].text() == "Aplicar a 3 células:"
+    next(a for a in menu.actions() if a.text() == "Limpar").trigger()
+    assert [modelo.data(i) for i in outras] == ["", "", ""]
+
+    # Um código desativado deixa de aparecer na lista.
+    ui.scalars(select(CodigoPresenca).where(CodigoPresenca.codigo == "AT")).one().ativo = False
+    ui.commit()
+    ecra.recarregar()
+    assert not any(a.text().startswith("AT ") for a in vista.menu_de_codigos(celula).actions())
+
+    # O duplo clique já não abre o editor de texto (abre a lista); escrever continua a abrir.
+    assert not vista.editTriggers() & QAbstractItemView.EditTrigger.DoubleClicked
+    assert vista.editTriggers() & QAbstractItemView.EditTrigger.AnyKeyPressed
+
+
+def test_lista_pendente_numa_celula_so_de_leitura(ui):
+    empresa = trabalhador(ui, 4).empresa
+    ui.add(FechoMes(empresa_id=empresa.id, ano=2027, mes=1, estado="fechado"))
+    ui.commit()
+    ecra = EcraPresencas(ui)
+    ecra.ir_para(date(2027, 1, 15))
+    acoes = ecra.dias.menu_de_codigos(indice(ecra.modelo, 4, date(2027, 1, 5))).actions()
+    assert len(acoes) == 1 and "fechado" in acoes[0].text() and not acoes[0].isEnabled()
