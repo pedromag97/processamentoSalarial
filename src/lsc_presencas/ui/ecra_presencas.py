@@ -5,10 +5,11 @@ os dias ao centro (a única parte editável, com deslocamento horizontal) e os t
 Por baixo há um rodapé igual, com as pessoas presentes por dia.
 """
 
+import json
 from calendar import monthrange
 from datetime import date, timedelta
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemDelegate,
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import config
 from ..modelos import CodigoPresenca
 from ..presencas import semana_de
 from . import definicoes as d
@@ -141,6 +143,8 @@ class VistaDias(QTableView):
 class Trio(QWidget):
     """Três tabelas sobre o mesmo modelo: colunas fixas, dias e totais."""
 
+    larguras_esq_mudaram = Signal(list)
+
     def __init__(self, modelo, centro: QTableView | None = None, *, cabecalho=True, parent=None):
         super().__init__(parent)
         self.modelo = modelo
@@ -171,7 +175,14 @@ class Trio(QWidget):
                 vista.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
                 vista.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             disposicao.addWidget(vista, 1 if vista is self.centro else 0)
-        self.esq.setFixedWidth(sum(LARGURAS_ESQ) + 4)
+        self.larguras_esq = list(LARGURAS_ESQ)
+        if cabecalho:
+            # As colunas fixas (nº, nome, cliente, viatura) podem ser alargadas com o rato.
+            cab = self.esq.horizontalHeader()
+            cab.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+            cab.setMinimumSectionSize(30)
+            cab.sectionResized.connect(self._coluna_esq_redimensionada)
+        self.esq.setFixedWidth(sum(self.larguras_esq) + 4)
         self.dir.setFixedWidth(sum(LARGURAS_DIR) + 4 + barra)
 
         barras = [v.verticalScrollBar() for v in (self.esq, self.centro, self.dir)]
@@ -194,11 +205,52 @@ class Trio(QWidget):
             self.centro.setColumnHidden(coluna, e_esq or e_dir)
             self.dir.setColumnHidden(coluna, not e_dir)
             if e_esq:
-                self.esq.setColumnWidth(coluna, LARGURAS_ESQ[coluna])
+                self.esq.setColumnWidth(coluna, self.larguras_esq[coluna])
             elif e_dir:
                 self.dir.setColumnWidth(coluna, LARGURAS_DIR[coluna - N_ESQ - n_dias])
             else:
                 self.centro.setColumnWidth(coluna, self.largura_dia)
+
+    def definir_larguras_esq(self, larguras: list[int]) -> None:
+        """Aplica as larguras das colunas fixas (sem voltar a emitir o sinal)."""
+        if len(larguras) != N_ESQ:
+            return
+        self.larguras_esq = [max(int(x), 30) for x in larguras]
+        cab = self.esq.horizontalHeader()
+        cab.blockSignals(True)
+        for coluna, largura in enumerate(self.larguras_esq):
+            self.esq.setColumnWidth(coluna, largura)
+        cab.blockSignals(False)
+        self.esq.setFixedWidth(sum(self.larguras_esq) + 4)
+
+    def _coluna_esq_redimensionada(self, coluna: int, _antiga: int, nova: int) -> None:
+        if coluna >= N_ESQ or self.esq.isColumnHidden(coluna) or self.larguras_esq[coluna] == nova:
+            return
+        self.larguras_esq[coluna] = nova
+        self.esq.setFixedWidth(sum(self.larguras_esq) + 4)
+        self.larguras_esq_mudaram.emit(list(self.larguras_esq))
+
+
+def ler_larguras_guardadas() -> list[int] | None:
+    """Larguras das colunas fixas escolhidas pelo utilizador (ficheiro na pasta da app)."""
+    try:
+        larguras = json.loads(_ficheiro_interface().read_text(encoding="utf-8"))["colunas_fixas"]
+        if len(larguras) == N_ESQ and all(isinstance(x, int) for x in larguras):
+            return larguras
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def guardar_larguras(larguras: list[int]) -> None:
+    try:
+        _ficheiro_interface().write_text(json.dumps({"colunas_fixas": larguras}), encoding="utf-8")
+    except OSError:
+        pass  # não conseguir guardar uma preferência não deve incomodar ninguém
+
+
+def _ficheiro_interface():
+    return config.pasta_app() / "interface.json"
 
 
 class EcraPresencas(QWidget):
@@ -224,6 +276,13 @@ class EcraPresencas(QWidget):
             self.rodape.centro.horizontalScrollBar().setValue
         )
         self.grelha.esq.clicked.connect(lambda indice: self.modelo.alternar_grupo(indice.row()))
+        # Larguras das colunas fixas: o rodapé acompanha a grelha e a escolha fica guardada.
+        self.grelha.larguras_esq_mudaram.connect(self.rodape.definir_larguras_esq)
+        self.grelha.larguras_esq_mudaram.connect(guardar_larguras)
+        guardadas = ler_larguras_guardadas()
+        if guardadas:
+            self.grelha.definir_larguras_esq(guardadas)
+            self.rodape.definir_larguras_esq(guardadas)
 
         # --- Barra de período e filtros ---
         self.botao_anterior = QPushButton("◀")
@@ -356,8 +415,8 @@ class EcraPresencas(QWidget):
                 caixa.addItem(rotulo, valor)
             caixa.setCurrentIndex(max(caixa.findData(atual), 0))
             caixa.blockSignals(False)
+        self._aplicar()  # carrega os códigos (as dicas dos botões vêm do modelo)
         self._montar_botoes_de_codigo()
-        self._aplicar()
 
     def _montar_botoes_de_codigo(self) -> None:
         while self.barra_codigos.count():
@@ -366,15 +425,22 @@ class EcraPresencas(QWidget):
             antigo.deleteLater()
         self.botoes_codigo = {}
         codigos = self.sessao.execute(
-            select(CodigoPresenca.codigo, CodigoPresenca.descricao, CodigoPresenca.cor)
+            select(CodigoPresenca.codigo, CodigoPresenca.cor)
             .where(CodigoPresenca.ativo)
             .order_by(CodigoPresenca.ordem, CodigoPresenca.codigo)
-        )
-        for codigo, descricao, cor in [*codigos, ("", "Limpar as células selecionadas", "#FFFFFF")]:
+        ).all()
+        for codigo, cor in [*codigos, ("", "#FFFFFF")]:
             botao = QPushButton(codigo or "Limpar")
-            botao.setToolTip(descricao)
+            info = self.modelo.por_codigo.get(codigo)
+            botao.setToolTip(
+                f"{info.explicacao}\nClique para aplicar às células selecionadas."
+                if info
+                else "Apaga as marcações das células selecionadas."
+            )
+            # Com seletor, para o estilo do botão não passar para a dica.
             botao.setStyleSheet(
-                f"background:{cor}; border:1px solid #999; padding:3px 8px; min-width:22px;"
+                f"QPushButton {{ background:{cor}; border:1px solid #999; padding:3px 8px; "
+                "min-width:22px; }"
             )
             botao.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             botao.clicked.connect(lambda _=False, c=codigo: self.aplicar_codigo(c))

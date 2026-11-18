@@ -33,6 +33,21 @@ MESES = [
 COLUNAS_ESQUERDA = ["Nº", "Nome", "Cliente", "Viatura"]
 CODIGOS_TOTAIS = ["P", "PF", "DF", "FE", "FI", "B"]
 COLUNAS_TOTAIS = [*CODIGOS_TOTAIS, "H. extra"]
+DICAS_ESQUERDA = [
+    "Número interno do trabalhador",
+    "Nome do trabalhador. Arraste a divisória do cabeçalho para alargar a coluna.",
+    "Cliente atual do trabalhador (ficha)",
+    "Viatura atual do trabalhador (ficha)",
+]
+DIAS_SEMANA_LONGOS = [
+    "segunda-feira",
+    "terça-feira",
+    "quarta-feira",
+    "quinta-feira",
+    "sexta-feira",
+    "sábado",
+    "domingo",
+]
 N_ESQ = len(COLUNAS_ESQUERDA)
 N_DIR = len(COLUNAS_TOTAIS)
 
@@ -87,6 +102,29 @@ class InfoCodigo:
     codigo: str
     cor: QColor
     conta_trabalhado: bool
+    descricao: str = ""
+    efeitos: str = ""
+
+    @property
+    def explicacao(self) -> str:
+        """«PF — Presente em França» e, por baixo, o que o código faz no cálculo."""
+        return f"{self.codigo} — {self.descricao}" + (f"\n{self.efeitos}" if self.efeitos else "")
+
+
+def efeitos_do_codigo(trabalhado, subsidio, ajuda, desconta, prevencao) -> str:
+    """O que um código de presença faz no cálculo, em palavras."""
+    partes = ["Conta como dia trabalhado" if trabalhado else "Não conta como dia trabalhado"]
+    if subsidio:
+        partes.append("dá subsídio de alimentação")
+    if ajuda == "sim":
+        partes.append("dá ajuda de custo França")
+    elif ajuda == "zona":
+        partes.append("dá ajuda de custo França se a zona for em França")
+    if desconta:
+        partes.append("desconta no salário base")
+    if prevencao:
+        partes.append("soma o valor da prevenção")
+    return "; ".join(partes) + "."
 
 
 class ModeloGrelha(QAbstractTableModel):
@@ -103,6 +141,7 @@ class ModeloGrelha(QAbstractTableModel):
         self.recolhidos: set[tuple] = set()
         self.marcacoes: dict[tuple[int, date], presencas.Celula] = {}
         self.codigos: dict[int, InfoCodigo] = {}
+        self.por_codigo: dict[str, InfoCodigo] = {}
         self.codigos_ativos: dict[str, int] = {}
         self.feriados: dict[date, str] = {}
         self.fechados: set[tuple[int, int, int]] = set()
@@ -173,16 +212,38 @@ class ModeloGrelha(QAbstractTableModel):
 
     def _carregar_apoio(self) -> None:
         self.codigos = {
-            id_: InfoCodigo(codigo, QColor(cor), trabalhado)
-            for id_, codigo, cor, trabalhado in self.sessao.execute(
+            id_: InfoCodigo(
+                codigo,
+                QColor(cor),
+                trabalhado,
+                descricao,
+                efeitos_do_codigo(trabalhado, subsidio, ajuda, desconta, prevencao),
+            )
+            for (
+                id_,
+                codigo,
+                cor,
+                trabalhado,
+                descricao,
+                subsidio,
+                ajuda,
+                desconta,
+                prevencao,
+            ) in self.sessao.execute(
                 select(
                     CodigoPresenca.id,
                     CodigoPresenca.codigo,
                     CodigoPresenca.cor,
                     CodigoPresenca.conta_trabalhado,
+                    CodigoPresenca.descricao,
+                    CodigoPresenca.subsidio_alimentacao,
+                    CodigoPresenca.ajuda_custo_franca,
+                    CodigoPresenca.desconta_salario,
+                    CodigoPresenca.soma_prevencao,
                 )
             )
         }
+        self.por_codigo = {info.codigo: info for info in self.codigos.values()}
         self.codigos_ativos = presencas.codigos_ativos(self.sessao)
         self.fechados = presencas.meses_fechados(self.sessao)
         self.feriados = {}
@@ -291,8 +352,19 @@ class ModeloGrelha(QAbstractTableModel):
                 return COLUNAS_TOTAIS[seccao - N_ESQ - len(self.dias)]
             numero = f"{dia.day:02d}/{dia.month:02d}" if len(self.dias) <= 7 else str(dia.day)
             return f"{DIAS_SEMANA[dia.weekday()]}\n{numero}"
-        if papel == Papel.ToolTipRole and dia is not None:
-            return self.feriados.get(dia) or f"{dia:%d/%m/%Y}"
+        if papel == Papel.ToolTipRole:
+            if dia is not None:
+                texto = f"{DIAS_SEMANA_LONGOS[dia.weekday()]}, {dia:%d/%m/%Y}"
+                return f"{texto}\nFeriado: {self.feriados[dia]}" if dia in self.feriados else texto
+            if seccao < N_ESQ:
+                return DICAS_ESQUERDA[seccao]
+            n = seccao - N_ESQ - len(self.dias)
+            if n < len(CODIGOS_TOTAIS):
+                info = self.por_codigo.get(CODIGOS_TOTAIS[n])
+                return "Número de dias no período com o código " + (
+                    info.explicacao if info else CODIGOS_TOTAIS[n]
+                )
+            return "Total de horas extra no período (o +2 de «PF+2»)."
         if papel == Papel.BackgroundRole and dia is not None:
             return self._cor_do_dia(dia)
         return None
@@ -319,6 +391,8 @@ class ModeloGrelha(QAbstractTableModel):
         if linha.tipo != TRABALHADOR:
             if papel == Papel.DisplayRole and coluna == 1:
                 return linha.texto
+            if papel == Papel.ToolTipRole:
+                return f"{linha.texto.strip()}\nClique para recolher ou expandir este grupo."
             if papel == Papel.BackgroundRole:
                 return COR_EMPRESA if linha.tipo == EMPRESA else COR_CLIENTE
             if papel == Papel.FontRole:
@@ -350,7 +424,12 @@ class ModeloGrelha(QAbstractTableModel):
         if papel == Papel.ToolTipRole:
             partes = [f"{trab.nome} — {DIAS_SEMANA[dia.weekday()]} {dia:%d/%m/%Y}"]
             if celula:
-                partes.append(self.texto(trab, dia))
+                partes.append(self.codigos[celula.codigo_id].explicacao)
+                if celula.horas_extra:
+                    horas = texto_decimal(celula.horas_extra.normalize())
+                    partes.append(f"Horas extra neste dia: {horas}")
+            else:
+                partes.append("Sem marcação. Escreva um código (ex.: P, PF, PF+2).")
             if dia in self.feriados:
                 partes.append(f"Feriado: {self.feriados[dia]}")
             if self.fechado(trab, dia):
@@ -364,8 +443,19 @@ class ModeloGrelha(QAbstractTableModel):
                 return (str(trab.numero), trab.nome, trab.cliente or "", trab.viatura or "")[coluna]
             if papel == Papel.TextAlignmentRole and coluna == 0:
                 return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            if papel == Papel.ToolTipRole:
+                return (
+                    f"N.º {trab.numero} — {trab.nome}\nCliente: {trab.cliente or '—'} · "
+                    f"Viatura: {trab.viatura or '—'}"
+                )
             return None
         n = coluna - N_ESQ - len(self.dias)
+        if papel == Papel.ToolTipRole:
+            if n < len(CODIGOS_TOTAIS):
+                info = self.por_codigo.get(CODIGOS_TOTAIS[n])
+                nome = info.descricao if info else CODIGOS_TOTAIS[n]
+                return f"{trab.nome}: {self._totais[trab.id][CODIGOS_TOTAIS[n]]} dia(s) — {nome}"
+            return f"{trab.nome}: horas extra no período"
         if papel == Papel.DisplayRole:
             if n < len(CODIGOS_TOTAIS):
                 return str(self._totais[trab.id][CODIGOS_TOTAIS[n]] or "")

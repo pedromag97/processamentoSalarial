@@ -386,9 +386,8 @@ def test_cores_de_fim_de_semana_feriado_e_codigo(ui):
     assert modelo.data(indice(modelo, 2, date(2027, 1, 9)), FUNDO) == COR_FIM_DE_SEMANA
     coluna_feriado = modelo.coluna_do_dia(date(2027, 1, 1))
     assert modelo.headerData(coluna_feriado, Qt.Orientation.Horizontal, FUNDO) == COR_FERIADO
-    assert (
-        modelo.headerData(coluna_feriado, Qt.Orientation.Horizontal, Qt.ItemDataRole.ToolTipRole)
-        == "Ano Novo"
+    assert "Ano Novo" in modelo.headerData(
+        coluna_feriado, Qt.Orientation.Horizontal, Qt.ItemDataRole.ToolTipRole
     )
     cor_p = ui.scalars(select(CodigoPresenca).where(CodigoPresenca.codigo == "P")).one().cor
     assert modelo.data(indice(modelo, 2, date(2027, 1, 4)), FUNDO).name().upper() == cor_p.upper()
@@ -631,3 +630,58 @@ def test_clicar_num_grupo_recolhe_o(ui):
     ecra.grelha.esq.clicked.emit(ecra.modelo.index(0, 1))
     assert ecra.modelo.rowCount() < total
     assert not ecra.grelha.esq.isColumnHidden(1) and ecra.grelha.esq.isColumnHidden(N_ESQ)
+
+
+DICA = Qt.ItemDataRole.ToolTipRole
+
+
+def test_dicas_explicam_codigos_celulas_e_cabecalhos(ui):
+    ecra = EcraPresencas(ui)
+    ecra.ir_para(date(2027, 1, 15))
+    modelo = ecra.modelo
+
+    dica = ecra.botoes_codigo["PF"].toolTip()
+    assert "PF — Presente em França" in dica
+    assert "Conta como dia trabalhado" in dica and "ajuda de custo França" in dica
+    assert "desconta no salário base" in ecra.botoes_codigo["FI"].toolTip()
+    assert "se a zona for em França" in ecra.botoes_codigo["PR"].toolTip()
+    assert "Apaga" in ecra.botoes_codigo[""].toolTip()
+
+    # Nº 4 (zona em França): 7 de janeiro é PF+2; nº 7 tem férias a 18.
+    assert "Horas extra neste dia: 2" in modelo.data(indice(modelo, 4, date(2027, 1, 7)), DICA)
+    assert "FE — Férias" in modelo.data(indice(modelo, 7, date(2027, 1, 18)), DICA)
+    vazia = modelo.data(indice(modelo, 1, date(2027, 1, 4)), DICA)  # antes da admissão
+    assert "Sem marcação" in vazia
+
+    horizontal = Qt.Orientation.Horizontal
+    assert "segunda-feira, 04/01/2027" in modelo.headerData(
+        modelo.coluna_do_dia(date(2027, 1, 4)), horizontal, DICA
+    )
+    primeiro_total = N_ESQ + len(modelo.dias)
+    assert "P — Presente em Portugal" in modelo.headerData(primeiro_total, horizontal, DICA)
+    assert "horas extra" in modelo.headerData(modelo.columnCount() - 1, horizontal, DICA)
+    assert "Nome" in modelo.headerData(1, horizontal, DICA)
+    linha = indice(modelo, 4, date(2027, 1, 7)).row()
+    assert trabalhador(ui, 4).nome in modelo.data(modelo.index(linha, 1), DICA)
+    assert "recolher" in modelo.data(modelo.index(0, 1), DICA)
+
+
+def test_colunas_fixas_podem_ser_alargadas_e_ficam_guardadas(ui, pasta_da_app):
+    ecra = EcraPresencas(ui)
+    antes = ecra.grelha.esq.width()
+    ecra.grelha.esq.horizontalHeader().resizeSection(1, 330)  # o que o rato faz ao arrastar
+    assert ecra.grelha.larguras_esq[1] == 330
+    assert ecra.grelha.esq.width() == antes + 120
+    assert ecra.rodape.esq.width() == ecra.grelha.esq.width()  # o rodapé acompanha
+    assert ecra.rodape.esq.columnWidth(1) == 330
+    assert json.loads((pasta_da_app / "interface.json").read_text())["colunas_fixas"][1] == 330
+
+    # A largura mantém-se ao mudar de mês e ao abrir outra vez a app.
+    ecra.avancar(1)
+    assert ecra.grelha.esq.columnWidth(1) == 330
+    outro = EcraPresencas(ui)
+    assert outro.grelha.esq.columnWidth(1) == 330 and outro.rodape.esq.columnWidth(1) == 330
+
+    # Um ficheiro estragado é ignorado.
+    (pasta_da_app / "interface.json").write_text("isto não é json")
+    assert EcraPresencas(ui).grelha.esq.columnWidth(1) == 210
