@@ -55,7 +55,6 @@ depois de o Pedro responder às dúvidas "Para o marco 5" mais abaixo.
 - [ ] Por verificar à mão pelo Pedro: "marcar um mês para 70 trabalhadores em menos de 10 min"
 
 ### Marcos seguintes
-- [ ] 4 — Dashboard de presenças
 - [ ] 5 — Importação da `s-27` (inclui o Excel fictício em `tests/fixtures/`)
 - [ ] 6 — Fecho do mês, alertas, Excel e PDF
 - [ ] 7 — Relatórios, backups, auditoria, PyInstaller
