@@ -11,7 +11,10 @@ uv run pyinstaller "%CD%\scripts\lsc_presencas_exe.py" ^
     --noconsole --noconfirm --clean ^
     --paths "%CD%\src" ^
     --add-data "%CD%\src\lsc_presencas\migracoes;lsc_presencas\migracoes" ^
-    --exclude-module pytest --exclude-module pypdf ^
+    --exclude-module pytest --exclude-module pypdf --exclude-module pgserver ^
+    --collect-all psycopg --collect-all psycopg_binary ^
+    --hidden-import sqlalchemy.dialects.postgresql.psycopg ^
+    --hidden-import keyring.backends.Windows --copy-metadata keyring ^
     --distpath "%SAIDA%\dist" ^
     --workpath "%SAIDA%\build" ^
     --specpath "%SAIDA%\build" || goto :erro

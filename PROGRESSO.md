@@ -2,8 +2,8 @@
 
 ## Marco atual
 
-**Marco 8 concluído** (2026-11-18): contas de login. À espera da aprovação do Pedro para o
-marco 9.
+**Marco 9 concluído** (2026-11-18): a app funciona sobre um servidor PostgreSQL. À espera da
+aprovação do Pedro para o marco 10.
 
 Os sete marcos da especificação original estão feitos (versão 1.0.0). A 2026-11-18 o Pedro
 pediu contas de login e uma base de dados única do Grupo LSC, usada por várias pessoas ao
@@ -17,9 +17,9 @@ confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Marco 9: a app passa a ligar-se a um servidor PostgreSQL (por configuração), com as migrações
-testadas nesse servidor, uma ferramenta para passar os dados do ficheiro SQLite para lá e as
-cópias de segurança feitas no servidor.
+Marco 10: uso em simultâneo. A grelha tem de mostrar o que os outros marcam, duas pessoas na
+mesma célula não se podem atropelar sem aviso, o fecho tem de ser seguro com outros ligados,
+e a sessão da interface não pode ficar com uma transação aberta durante horas.
 
 Em paralelo, o Pedro experimenta a app com dados reais (importação da `s-27`, valores com o
 contabilista, um mês completo, fecho e ficheiros).
@@ -121,8 +121,21 @@ contabilista, um mês completo, fecho e ficheiros).
 - [x] A auditoria passa a registar o nome da conta (em vez do utilizador do Windows)
 - [x] Recuperação: `LSC-Presencas.exe repor-admin` (ou `python -m lsc_presencas repor-admin`)
 
+### Marco 9 — base de dados em servidor
+- [x] Ligação configurável: `LSC_BD_URL` (desenvolvimento), ou `ligacao.json` na pasta da app
+      com a palavra-passe no cofre de credenciais do Windows, ou o ficheiro local
+- [x] As três migrações e todo o cálculo/fecho/exportação testados em PostgreSQL 16
+      (servidor de teste do pacote `pgserver`, arrancado pelos próprios testes)
+- [x] `transferencia.py`: copia todos os dados entre bases de dados, preservando os ids
+- [x] `servidor.py` e diálogo «Ligação ao servidor» (no login, no ecrã Base de dados e quando
+      o servidor não responde ao abrir): testar, guardar, enviar os dados deste PC para um
+      servidor vazio, voltar ao ficheiro local
+- [x] Cópias de segurança com servidor: descarregam tudo para um ficheiro SQLite local (antes
+      de fechar/reabrir um mês e à mão); não há cópia ao abrir
+- [x] Mensagens de erro do PostgreSQL e de falha de rede em português
+- [ ] Por fazer no marco 11: instalar o servidor verdadeiro, a VPN e a cópia agendada no servidor
+
 ### Marcos seguintes (plano aprovado a 2026-11-18)
-- [ ] 9 — Base de dados em servidor (PostgreSQL), migração dos dados, backups no servidor
 - [ ] 10 — Uso em simultâneo: a grelha atualiza-se, conflitos na mesma célula, fecho seguro
 - [ ] 11 — Instalação: guia do servidor e da VPN, executável novo, teste entre dois PCs
 

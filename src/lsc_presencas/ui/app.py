@@ -35,6 +35,7 @@ from .ecra_contas import DialogoSenha, EcraContas, pedir_login
 from .ecra_fecho import EcraFecho
 from .ecra_importacao import AssistenteImportacao
 from .ecra_lancamentos import EcraLancamentos
+from .ecra_ligacao import MENSAGEM_REABRIR, DialogoLigacao
 from .ecra_presencas import EcraPresencas
 from .ecra_relatorios import EcraRelatorios
 from .ecra_tabelas import EcraTabelas
@@ -67,6 +68,8 @@ class EcraInicio(QWidget):
         self.botao_importar.clicked.connect(self.importar)
         self.botao_backup = QPushButton("Fazer uma cópia de segurança agora")
         self.botao_backup.clicked.connect(self.fazer_backup)
+        self.botao_servidor = QPushButton("Ligação ao servidor…")
+        self.botao_servidor.clicked.connect(self.ligacao_ao_servidor)
         self.botao_pasta = QPushButton("Abrir a pasta das cópias de segurança")
         self.botao_pasta.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(config.pasta_backups())))
@@ -76,7 +79,12 @@ class EcraInicio(QWidget):
         disposicao = QVBoxLayout(self)
         disposicao.addStretch(1)
         disposicao.addWidget(self.texto)
-        for botao in (self.botao_importar, self.botao_backup, self.botao_pasta):
+        for botao in (
+            self.botao_importar,
+            self.botao_servidor,
+            self.botao_backup,
+            self.botao_pasta,
+        ):
             disposicao.addWidget(botao, 0, Qt.AlignmentFlag.AlignCenter)
         disposicao.addWidget(self.mensagem)
         disposicao.addStretch(1)
@@ -93,7 +101,7 @@ class EcraInicio(QWidget):
                     "",
                     *linhas,
                     "",
-                    f"Base de dados: {config.caminho_bd()}",
+                    f"Base de dados: {config.descricao_bd()}",
                     f"Cópias de segurança: {len(copias)} (guardam-se as últimas "
                     f"{backups.MAX_BACKUPS}); a mais recente: {ultima}",
                 ]
@@ -116,6 +124,14 @@ class EcraInicio(QWidget):
     def importar(self) -> None:
         AssistenteImportacao(self.sessao, self).exec()
         self.recarregar()
+
+    def ligacao_ao_servidor(self) -> None:
+        self.sessao.commit()  # liberta o ficheiro local, que pode ser lido para enviar os dados
+        dialogo = DialogoLigacao(parent=self)
+        dialogo.exec()
+        if dialogo.mudou:
+            QMessageBox.information(self, "LSC Presenças", MENSAGEM_REABRIR)
+            self.window().close()
 
 
 class JanelaPrincipal(QMainWindow):

@@ -7,6 +7,8 @@ python -m lsc_presencas repor-admin   define uma palavra-passe nova para um admi
 
 import sys
 
+from sqlalchemy.exc import IntegrityError
+
 from . import config, db
 from .dados_base import carregar_dados_base
 
@@ -18,6 +20,8 @@ def copia_ao_abrir() -> None:
     """
     from . import backups
 
+    if config.usa_servidor():
+        return  # as cópias do servidor fazem-se no servidor (e antes de fechar um mês)
     caminho = config.caminho_bd()
     if not caminho.is_file() or caminho.stat().st_size == 0:
         return
@@ -40,24 +44,59 @@ def preparar_bd(com_copia: bool = False):
     db.migrar()
     fabrica = db.criar_fabrica_sessoes(db.criar_engine())
     with fabrica() as sessao:
-        carregar_dados_base(sessao)
-        sessao.commit()
+        try:
+            carregar_dados_base(sessao)
+            sessao.commit()
+        except IntegrityError:
+            # Outro PC abriu o programa ao mesmo tempo e já os carregou.
+            sessao.rollback()
     return fabrica
+
+
+def abrir_base_de_dados():
+    """Prepara a base de dados para a app. Se o servidor não responder, mostra o diálogo
+    da ligação para corrigir, tentar outra vez ou voltar ao ficheiro deste PC.
+
+    Devolve None se a pessoa desistiu.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    from . import servidor
+    from .ui.ecra_ligacao import DialogoLigacao
+
+    while True:
+        try:
+            return preparar_bd(com_copia=True)
+        except Exception as erro:  # noqa: BLE001
+            if not config.usa_servidor():
+                raise
+            app = QApplication.instance() or QApplication(sys.argv)
+            dialogo = DialogoLigacao(
+                erro=servidor.explicar(erro)
+                + " Corrija a ligação e guarde, ou feche esta janela e tente mais tarde."
+            )
+            dialogo.exec()
+            del app
+            if not dialogo.mudou:
+                return None
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["migrar"]:
         preparar_bd()
-        print(f"Base de dados atualizada: {config.caminho_bd()}")
+        print(f"Base de dados atualizada: {config.descricao_bd()}")
         return 0
 
     try:
         from .ui.app import correr, recuperar_administrador
 
+        fabrica = abrir_base_de_dados()
+        if fabrica is None:
+            return 0
         if argv[:1] == ["repor-admin"]:
-            return recuperar_administrador(preparar_bd(com_copia=True))
-        return correr(preparar_bd(com_copia=True))
+            return recuperar_administrador(fabrica)
+        return correr(fabrica)
     except Exception:
         _mostrar_erro_de_arranque()
         return 1

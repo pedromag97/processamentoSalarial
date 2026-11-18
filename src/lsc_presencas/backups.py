@@ -1,4 +1,9 @@
-"""Cópias de segurança da base de dados (guardam-se as últimas 30)."""
+"""Cópias de segurança da base de dados (guardam-se as últimas 30).
+
+Com a base de dados em ficheiro, copia-se o ficheiro. Com um servidor, descarregam-se todos
+os dados para um ficheiro SQLite local, que a app sabe abrir e voltar a enviar. Isto não
+dispensa as cópias de segurança feitas no próprio servidor.
+"""
 
 import sqlite3
 from datetime import datetime
@@ -6,17 +11,14 @@ from pathlib import Path
 
 from sqlalchemy import Engine
 
-from . import config
+from . import config, db, transferencia
 
 MAX_BACKUPS = 30
 PREFIXO = "presencas_"
 
 
 def fazer_backup(engine: Engine, etiqueta: str = "", pasta: Path | None = None) -> Path:
-    """Copia a base de dados para a pasta de backups e apaga as cópias mais antigas.
-
-    Usa a cópia própria do SQLite, que é segura mesmo com a base de dados aberta.
-    """
+    """Copia a base de dados para a pasta de backups e apaga as cópias mais antigas."""
     pasta = pasta or config.pasta_backups()
     pasta.mkdir(parents=True, exist_ok=True)
     nome = PREFIXO + datetime.now().strftime("%Y%m%d-%H%M%S-%f")
@@ -24,6 +26,17 @@ def fazer_backup(engine: Engine, etiqueta: str = "", pasta: Path | None = None) 
         nome += f"_{etiqueta}"
     destino = pasta / f"{nome}.db"
 
+    if engine.dialect.name == "sqlite":
+        _copiar_ficheiro(engine, destino)
+    else:
+        _descarregar_do_servidor(engine, destino)
+
+    limpar(pasta)
+    return destino
+
+
+def _copiar_ficheiro(engine: Engine, destino: Path) -> None:
+    """Cópia própria do SQLite, segura mesmo com a base de dados aberta."""
     origem = engine.raw_connection()
     try:
         copia = sqlite3.connect(destino)
@@ -34,8 +47,19 @@ def fazer_backup(engine: Engine, etiqueta: str = "", pasta: Path | None = None) 
     finally:
         origem.close()
 
-    limpar(pasta)
-    return destino
+
+def _descarregar_do_servidor(engine: Engine, destino: Path) -> None:
+    url = f"sqlite:///{destino.as_posix()}"
+    try:
+        db.criar_vazia(url)
+        local = db.criar_engine(url)
+        try:
+            transferencia.copiar(engine, local, substituir=True)
+        finally:
+            local.dispose()
+    except Exception:
+        destino.unlink(missing_ok=True)  # não fica uma cópia a meio
+        raise
 
 
 def listar(pasta: Path | None = None) -> list[Path]:

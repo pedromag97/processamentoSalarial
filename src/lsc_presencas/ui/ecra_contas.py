@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -16,8 +17,9 @@ from PySide6.QtWidgets import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .. import contas
+from .. import config, contas
 from ..modelos import PERFIL_ADMIN, PERFIL_UTILIZADOR, Utilizador
+from .ecra_ligacao import MENSAGEM_REABRIR, DialogoLigacao
 from .lista import nova_lista, preencher
 
 ESTILO_ERRO = "color:#B00020;"
@@ -279,13 +281,31 @@ def pedir_login(sessao: Session) -> Utilizador | None:
 
     Devolve a conta autenticada, ou None se a pessoa cancelou.
     """
-    if not contas.ha_contas(sessao):
-        dialogo = DialogoConta(sessao, primeira=True)
-        dialogo.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
-        if dialogo.exec() != QDialog.DialogCode.Accepted:
-            return None
-        return dialogo.conta
-    dialogo = DialogoLogin(sessao)
-    if dialogo.exec() != QDialog.DialogCode.Accepted:
+    primeira = not contas.ha_contas(sessao)
+    dialogo = DialogoConta(sessao, primeira=True) if primeira else DialogoLogin(sessao)
+    dialogo.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+
+    # Num PC novo, é aqui que se indica o servidor (antes de haver login).
+    mudou_ligacao = []
+
+    def ligar_ao_servidor() -> None:
+        sessao.rollback()
+        ligacao = DialogoLigacao(parent=dialogo)
+        ligacao.exec()
+        if ligacao.mudou:
+            mudou_ligacao.append(True)
+            QMessageBox.information(dialogo, "LSC Presenças", MENSAGEM_REABRIR)
+            dialogo.reject()
+
+    botao = QPushButton("Ligação ao servidor…")
+    botao.setAutoDefault(False)
+    botao.clicked.connect(ligar_ao_servidor)
+    dialogo.disposicao.insertWidget(dialogo.disposicao.count() - 1, botao)
+    origem = QLabel(f"Base de dados: {config.descricao_bd()}")
+    origem.setWordWrap(True)
+    origem.setStyleSheet("color:#666;")
+    dialogo.disposicao.insertWidget(dialogo.disposicao.count() - 1, origem)
+
+    if dialogo.exec() != QDialog.DialogCode.Accepted or mudou_ligacao:
         return None
     return dialogo.conta

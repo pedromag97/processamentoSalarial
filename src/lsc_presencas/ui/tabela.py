@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from sqlalchemy import inspect, select
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, InterfaceError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .formatos import ler_data, ler_decimal, ler_inteiro, texto_data, texto_decimal
@@ -103,12 +103,15 @@ def mensagem_de_erro(erro: Exception) -> str:
     if isinstance(erro, ValueError):
         return str(erro)
     texto = str(getattr(erro, "orig", erro))
-    if "UNIQUE" in texto:
+    maiusculas = texto.upper()  # o SQLite e o PostgreSQL dizem o mesmo de formas diferentes
+    if "UNIQUE" in maiusculas:
         return "Já existe um registo com esse valor."
-    if "FOREIGN KEY" in texto:
+    if "FOREIGN KEY" in maiusculas:
         return "Este registo está a ser usado noutro sítio e não pode ser apagado."
-    if "NOT NULL" in texto:
+    if "NOT NULL" in maiusculas or "NOT-NULL" in maiusculas:
         return "Falta preencher um campo obrigatório."
+    if isinstance(erro, OperationalError | InterfaceError):
+        return "Perdeu-se a ligação à base de dados. Confirme a rede (ou a VPN) e tente outra vez."
     return f"Não foi possível gravar: {texto}"
 
 

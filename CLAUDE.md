@@ -92,6 +92,8 @@ src/lsc_presencas/
   relatorios.py   férias e prevenção (anuais), dias por cliente e por viatura; para_excel()
   auditoria.py    registar() e listar() a auditoria (ecrã Auditoria e histórico da ficha)
   contas.py       contas de login: palavras-passe, autenticar, perfis, sessão em curso
+  transferencia.py  copiar todos os dados entre duas bases de dados
+  servidor.py     ligar a um servidor PostgreSQL (testar, preparar, enviar os dados locais)
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -146,6 +148,16 @@ tests/
   (`--add-data`). O executável nunca lê o `.env`: usa `%APPDATA%\LSC-Presencas`, a não ser
   que a variável de ambiente `LSC_APP_DIR` esteja definida. A pasta `dist` fica fora do
   OneDrive e do Git.
+- **Servidor (marco 9):** a app corre igual em SQLite (ficheiro local) e em PostgreSQL.
+  `config.url_bd()` decide: `LSC_BD_URL`, depois `ligacao.json` + cofre do Windows
+  (`keyring`), depois o ficheiro local. Nunca escrever a palavra-passe do servidor em
+  ficheiros nem em registos. `transferencia.copiar()` passa os dados de uma base para outra
+  (envio inicial para o servidor e cópias de segurança servidor → ficheiro SQLite). Nunca se
+  substituem dados do servidor sem `substituir=True`. Código novo tem de funcionar nas duas
+  bases: os testes de `tests/test_servidor.py` correm num PostgreSQL verdadeiro (`pgserver`).
+- **Por resolver no marco 10:** a sessão única da interface deixa a ligação "idle in
+  transaction" no servidor; duas pessoas a abrir o programa ao mesmo tempo depois de uma
+  atualização correm as migrações em paralelo.
 - **Atenção ao `%LOCALAPPDATA%` dentro da app Claude (Windows):** o que o Claude Code grava aí
   é redirecionado para `AppData\Local\Packages\Claude_…\LocalCache\Local\`. Por isso o venv,
   a base de dados de desenvolvimento e a pasta `dist` das sessões do Claude não são os mesmos
