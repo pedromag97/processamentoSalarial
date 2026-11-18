@@ -181,8 +181,14 @@ uma cópia de segurança.
   não grava nada por cima sem o ter visto.
 - Enquanto um administrador fecha um mês, as gravações dos outros esperam uns segundos. Depois
   do fecho, quem ainda via o mês aberto é avisado quando tentar gravar.
-- Em fichas, tabelas e lançamentos, se duas pessoas alterarem o mesmo registo, fica a última
-  gravação. As alterações a fichas, salários e lançamentos ficam na auditoria.
+- **Cadeado:** enquanto uma pessoa tem a ficha de um funcionário aberta, ou células dele
+  selecionadas na grelha, esse funcionário aparece aos outros com um cadeado e fica só de
+  leitura (presenças, lançamentos e ficha). Passar o rato por cima diz quem o tem. O cadeado
+  sai quando a pessoa fecha a ficha, muda a seleção, muda de ecrã ou fecha o programa. Os
+  outros veem a mudança na atualização seguinte (até 15 segundos, ou F5). Se o programa
+  fechar mal ou a rede cair, o cadeado sai sozinho ao fim de 90 segundos.
+- Nas tabelas (clientes, viaturas, parâmetros…), se dois administradores alterarem o mesmo
+  registo, fica a última gravação.
 
 ## Problemas comuns
 

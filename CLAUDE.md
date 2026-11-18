@@ -95,6 +95,7 @@ src/lsc_presencas/
   transferencia.py  copiar todos os dados entre duas bases de dados
   servidor.py     ligar a um servidor PostgreSQL (testar, preparar, enviar os dados locais)
   concorrencia.py bloqueios entre pessoas (marcações/fecho, migrações) e libertar a ligação
+  bloqueios.py    cadeados: quem está a mexer em que funcionário
   demo.py         dados de demonstração
   migracoes/      Alembic (dentro do pacote, para o PyInstaller)
   ui/             interface PySide6
@@ -165,6 +166,12 @@ tests/
   `concorrencia.libertar_leitura()` de 2 em 2 s para não deixar transações abertas, e faz
   `expire_all()` ao mudar de ecrã. Qualquer operação nova que dependa de "o mês está
   aberto" tem de pedir o bloqueio partilhado primeiro.
+- **Cadeados (`bloqueios.py`):** tabela `bloqueio_trabalhador`, uma linha por funcionário em
+  uso. Pede-se com `definir()` (seleção da grelha, com espera de 350 ms) ou `pedir()` (abrir
+  a ficha); renova-se de 30 em 30 s; caduca aos 90 s; as horas são sempre as do servidor.
+  Qualquer operação que altere dados de um funcionário tem de chamar
+  `bloqueios.exigir_livres()`. A tabela não entra nas cópias nem na transferência. `ID_PROGRAMA`
+  identifica o programa aberto: nos testes, a "outra pessoa" usa outro valor de `programa`.
 - **Empacotar:** o `empacotar.cmd` força o OpenSSL do próprio Python (`--add-binary` e PATH).
   Sem isso o PyInstaller apanha o do Git ou do MSYS e o `_ssl` não carrega dentro do `.exe`
   (a ligação ao servidor falha). Depois de empacotar, ensaiar sempre o `.exe` contra um

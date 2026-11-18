@@ -2,7 +2,7 @@
 
 ## Marco atual
 
-**Marco 11 concluído** (2026-11-18), versão 2.0.0. Em curso: cadeados nos funcionários. À
+**Marco 11 concluído** (2026-11-18), versão 2.0.0, mais os cadeados nos funcionários. À
 espera de o Pedro instalar o servidor e a VPN a sério.
 
 Os sete marcos da especificação original estão feitos (versão 1.0.0). A 2026-11-18 o Pedro
@@ -17,7 +17,8 @@ confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Acabar os cadeados nos funcionários (tabela, ecrãs, testes) e reconstruir o executável.
+O Pedro instala o servidor PostgreSQL e a VPN seguindo `docs/INSTALACAO.md`, liga dois PCs
+e experimenta com duas pessoas ao mesmo tempo. O que encontrar passa a ser a lista de trabalho.
 
 Em paralelo, o Pedro experimenta a app com dados reais (importação da `s-27`, valores com o
 contabilista, um mês completo, fecho e ficheiros).
@@ -163,9 +164,14 @@ contabilista, um mês completo, fecho e ficheiros).
 - [ ] Por fazer pelo Pedro: instalar o PostgreSQL e a VPN a sério, e testar entre dois PCs
 
 ### Depois do marco 11 (pedido do Pedro a 2026-11-18)
-- [ ] Cadeado: um funcionário fica bloqueado para os outros enquanto alguém tem a ficha dele
-      aberta ou células dele selecionadas na grelha (`bloqueios.py` escrito; falta a tabela,
-      os ecrãs e os testes)
+- [x] Cadeado (migração `0004`, `bloqueios.py`): um funcionário fica bloqueado para os outros
+      enquanto alguém tem a ficha dele aberta ou células dele selecionadas na grelha
+- [x] Os outros veem o cadeado na grelha e na lista de trabalhadores, com quem o tem; as
+      células e a ficha ficam só de leitura, e o núcleo recusa marcações, lançamentos e
+      alterações à ficha desse funcionário
+- [x] O cadeado sai ao fechar a ficha, mudar a seleção, mudar de ecrã ou fechar o programa;
+      caduca sozinho 90 s depois de o programa deixar de o renovar
+- [x] Testado em SQLite e em PostgreSQL (`tests/test_cadeados.py`)
 
 
 ### Por validar pelo Pedro (critérios de aceitação)

@@ -17,6 +17,8 @@ from .modelos import Base
 LOTE = 500
 # Tabelas que a app preenche sozinha (dados base): não contam como "dados do utilizador".
 TABELAS_BASE = {"codigo_presenca", "feriado"}
+# Estado do momento (quem está a mexer em quem): não se copia nem conta como dados.
+TABELAS_TRANSITORIAS = {"bloqueio_trabalhador"}
 
 
 class DestinoComDados(ValueError):
@@ -38,6 +40,7 @@ def contar(engine: Engine) -> dict[str, int]:
         return {
             tabela.name: ligacao.scalar(select(func.count()).select_from(tabela)) or 0
             for tabela in Base.metadata.sorted_tables
+            if tabela.name not in TABELAS_TRANSITORIAS
         }
 
 
@@ -62,6 +65,8 @@ def copiar(origem: Engine, destino: Engine, *, substituir: bool = False) -> Resu
         for tabela in reversed(tabelas):
             para.execute(delete(tabela))
         for tabela in tabelas:
+            if tabela.name in TABELAS_TRANSITORIAS:
+                continue
             n = 0
             lote: list[dict] = []
             for linha in de.execute(select(tabela)).mappings():

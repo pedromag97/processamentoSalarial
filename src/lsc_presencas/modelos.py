@@ -340,6 +340,24 @@ class Utilizador(Base):
         return f"<Utilizador {self.nome_utilizador} ({self.perfil})>"
 
 
+class BloqueioTrabalhador(Base):
+    """Cadeado: quem está a mexer num funcionário neste momento (ver bloqueios.py).
+
+    Uma linha por funcionário bloqueado. `programa` identifica o programa aberto que o tem;
+    `renovado_em` é atualizado de 30 em 30 segundos enquanto esse programa estiver aberto.
+    As horas são as do servidor, em UTC.
+    """
+
+    __tablename__ = "bloqueio_trabalhador"
+
+    trabalhador_id: Mapped[int] = mapped_column(ForeignKey("trabalhador.id"), primary_key=True)
+    utilizador: Mapped[str] = mapped_column(String(80))
+    nome: Mapped[str] = mapped_column(String(120))
+    programa: Mapped[str] = mapped_column(String(32), index=True)
+    desde: Mapped[datetime] = mapped_column(DateTime)
+    renovado_em: Mapped[datetime] = mapped_column(DateTime)
+
+
 class Auditoria(Base):
     """Registo de alterações: quem, quando, valor antigo e valor novo (em JSON)."""
 

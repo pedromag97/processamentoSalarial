@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .. import presencas
+from .. import bloqueios, presencas
 from ..modelos import Cliente, CodigoPresenca, Empresa, Feriado, Trabalhador, Viatura
 from ..presencas import Alteracao
 from .formatos import sem_acentos, texto_decimal
@@ -52,6 +52,7 @@ DIAS_SEMANA_LONGOS = [
 N_ESQ = len(COLUNAS_ESQUERDA)
 N_DIR = len(COLUNAS_TOTAIS)
 
+CADEADO = "\U0001f512"  # cadeado fechado
 COR_FIM_DE_SEMANA = QColor("#E9E9E9")
 COR_FERIADO = QColor("#D6D6E8")
 COR_EMPRESA = QColor("#BFC8D6")
@@ -146,6 +147,7 @@ class ModeloGrelha(QAbstractTableModel):
         self.codigos_ativos: dict[str, int] = {}
         self.feriados: dict[date, str] = {}
         self.fechados: set[tuple[int, int, int]] = set()
+        self.cadeados: dict[int, bloqueios.Cadeado] = {}  # funcionários em uso por outros
         self._totais: dict[int, Counter] = {}
         self._horas: dict[int, Decimal] = {}
         self._desfazer: list[list[Alteracao]] = []
@@ -247,6 +249,7 @@ class ModeloGrelha(QAbstractTableModel):
         self.por_codigo = {info.codigo: info for info in self.codigos.values()}
         self.codigos_ativos = presencas.codigos_ativos(self.sessao)
         self.fechados = presencas.meses_fechados(self.sessao)
+        self.cadeados = bloqueios.de_outros(self.sessao)
         self.feriados = {}
         if self.dias:
             for dia, nome in self.sessao.execute(
@@ -382,7 +385,8 @@ class ModeloGrelha(QAbstractTableModel):
         if celula is None:
             return Qt.ItemFlag.ItemIsEnabled
         base = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        return base if self.fechado(*celula) else base | Qt.ItemFlag.ItemIsEditable
+        so_leitura = self.fechado(*celula) or celula[0].id in self.cadeados
+        return base if so_leitura else base | Qt.ItemFlag.ItemIsEditable
 
     def data(self, indice, papel=Papel.DisplayRole):
         if not indice.isValid():
@@ -419,7 +423,8 @@ class ModeloGrelha(QAbstractTableModel):
         if papel == Papel.BackgroundRole:
             if celula:
                 return self.codigos[celula.codigo_id].cor
-            return self._cor_do_dia(dia) or (COR_FECHADO if self.fechado(trab, dia) else None)
+            so_leitura = self.fechado(trab, dia) or trab.id in self.cadeados
+            return self._cor_do_dia(dia) or (COR_FECHADO if so_leitura else None)
         if papel == Papel.TextAlignmentRole:
             return int(Qt.AlignmentFlag.AlignCenter)
         if papel == Papel.ToolTipRole:
@@ -435,20 +440,26 @@ class ModeloGrelha(QAbstractTableModel):
                 partes.append(f"Feriado: {self.feriados[dia]}")
             if self.fechado(trab, dia):
                 partes.append("Mês fechado (só de leitura)")
+            if trab.id in self.cadeados:
+                partes.append(f"{CADEADO} {self.cadeados[trab.id].descricao} (só de leitura)")
             return "\n".join(partes)
         return None
 
     def _dado_fixo(self, trab: LinhaTrab, coluna: int, papel):
         if coluna < N_ESQ:
             if papel == Papel.DisplayRole:
-                return (str(trab.numero), trab.nome, trab.cliente or "", trab.viatura or "")[coluna]
+                nome = f"{CADEADO} {trab.nome}" if trab.id in self.cadeados else trab.nome
+                return (str(trab.numero), nome, trab.cliente or "", trab.viatura or "")[coluna]
             if papel == Papel.TextAlignmentRole and coluna == 0:
                 return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             if papel == Papel.ToolTipRole:
-                return (
+                dica = (
                     f"N.º {trab.numero} — {trab.nome}\nCliente: {trab.cliente or '—'} · "
                     f"Viatura: {trab.viatura or '—'}"
                 )
+                if trab.id in self.cadeados:
+                    dica += f"\n{CADEADO} {self.cadeados[trab.id].descricao}"
+                return dica
             return None
         n = coluna - N_ESQ - len(self.dias)
         if papel == Papel.ToolTipRole:
@@ -524,14 +535,15 @@ class ModeloGrelha(QAbstractTableModel):
         """
         if not self.dias:
             return False
-        antes = (self.marcacoes, self.fechados)
+        antes = (self.marcacoes, self.fechados, self.cadeados)
         try:
             self.fechados = presencas.meses_fechados(self.sessao)
+            self.cadeados = bloqueios.de_outros(self.sessao)
             self._mostrar_marcacoes()
         except SQLAlchemyError:
             self.sessao.rollback()
             return False
-        return (self.marcacoes, self.fechados) != antes
+        return (self.marcacoes, self.fechados, self.cadeados) != antes
 
     def aplicar_texto(self, indices, texto: str) -> bool:
         """Aplica o mesmo texto (ex.: «PF» ou «P+2»; vazio = limpar) a várias células."""

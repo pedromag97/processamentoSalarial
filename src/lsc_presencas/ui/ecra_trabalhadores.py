@@ -18,12 +18,20 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .. import auditoria, contas
+from .. import auditoria, bloqueios, contas
 from ..modelos import SalarioBase, Trabalhador
 from . import definicoes as d
 from .ecra_auditoria import ListaAuditoria
 from .formatos import sem_acentos
-from .tabela import SEM_PERMISSAO, Formulario, ModeloTabela, VistaTabela, mensagem_de_erro
+from .grelha import CADEADO
+from .tabela import (
+    SEM_PERMISSAO,
+    Coluna,
+    Formulario,
+    ModeloTabela,
+    VistaTabela,
+    mensagem_de_erro,
+)
 
 
 class FiltroTrabalhadores(QSortFilterProxyModel):
@@ -109,10 +117,21 @@ class FichaTrabalhador(QDialog):
         botoes.accepted.connect(self.guardar)
         botoes.rejected.connect(self.reject)
         self.botao_guardar = botoes.button(QDialogButtonBox.StandardButton.Save)
-        if not contas.e_admin():
-            # Sem permissão para alterar: a ficha fica só para consulta.
+        # Quem abre a ficha para alterar fica com o cadeado do funcionário até a fechar.
+        # `cadeado` é None se ficou com ele, ou o cadeado da pessoa que já o tinha.
+        self.cadeado = bloqueios.pedir(sessao, trabalhador.id) if contas.e_admin() else None
+        self.tem_cadeado = contas.e_admin() and self.cadeado is None
+        if self.cadeado is not None:
+            self.erro.setText(
+                f"{CADEADO} {self.cadeado.descricao}. A ficha está só para consulta; abra-a "
+                "outra vez quando essa pessoa sair."
+            )
+        if not contas.e_admin() or self.cadeado is not None:
+            # Sem permissão para alterar, ou em uso: a ficha fica só para consulta.
             self.botao_guardar.setEnabled(False)
-            self.botao_guardar.setToolTip(SEM_PERMISSAO)
+            self.botao_guardar.setToolTip(
+                self.cadeado.descricao if self.cadeado is not None else SEM_PERMISSAO
+            )
             self.dados.setEnabled(False)
             self.excecoes.setEnabled(False)
             self.salarios.bloquear(True)
@@ -163,11 +182,25 @@ class FichaTrabalhador(QDialog):
                 return
             auditoria.registar(sessao, "salario_base", salario.id, acao, antigo, novo)
 
+    def done(self, resultado: int) -> None:
+        """Ao fechar a ficha (guardar, cancelar ou fechar a janela), larga o cadeado."""
+        if self.tem_cadeado:
+            self.tem_cadeado = False
+            try:
+                bloqueios.largar(self.sessao, [self.trabalhador.id])
+            except SQLAlchemyError:
+                pass  # sem ligação: o cadeado caduca sozinho ao fim de 90 segundos
+        super().done(resultado)
+
     def guardar(self) -> bool:
         if not contas.e_admin():
             self.erro.setText(SEM_PERMISSAO)
             return False
+        if self.cadeado is not None:
+            self.erro.setText(f"{CADEADO} {self.cadeado.descricao}.")
+            return False
         try:
+            bloqueios.exigir_livres(self.sessao, [self.trabalhador.id])
             valores = {**self.dados.valores(), **self.excecoes.valores()}
             with self.sessao.no_autoflush:
                 gravado = self.sessao.execute(
@@ -212,10 +245,17 @@ class EcraTrabalhadores(QWidget):
     def __init__(self, sessao: Session, parent=None):
         super().__init__(parent)
         self.sessao = sessao
+        self.cadeados: dict[int, bloqueios.Cadeado] = {}
+        coluna_cadeado = Coluna(
+            "cadeado",
+            CADEADO,
+            obter=lambda t: CADEADO if t.id in self.cadeados else "",
+            dica="Com cadeado: outra pessoa está a mexer neste funcionário.",
+        )
         self.modelo = ModeloTabela(
             sessao,
             Trabalhador,
-            [*d.COLUNAS_TRABALHADOR, d.COLUNA_SALARIO_ATUAL],
+            [*d.COLUNAS_TRABALHADOR, d.COLUNA_SALARIO_ATUAL, coluna_cadeado],
             consulta=lambda: select(Trabalhador).order_by(Trabalhador.numero),
             ao_criar=d.preparar_trabalhador,
         )
@@ -254,6 +294,10 @@ class EcraTrabalhadores(QWidget):
 
     def recarregar(self) -> None:
         self.vista.bloquear(not contas.e_admin())
+        try:
+            self.cadeados = bloqueios.de_outros(self.sessao)
+        except SQLAlchemyError:
+            self.sessao.rollback()
         self.vista.recarregar()
 
     def abrir_ficha(self) -> None:

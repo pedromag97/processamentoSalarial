@@ -29,9 +29,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .. import config
+from .. import bloqueios, config
 from ..modelos import CodigoPresenca
 from ..presencas import semana_de
 from . import definicoes as d
@@ -367,6 +368,16 @@ class EcraPresencas(QWidget):
         self.botao_desfazer.clicked.connect(self.modelo.desfazer)
         self.modelo.erro.connect(self._mostrar_erro)
 
+        # Os funcionários das células selecionadas ficam com o cadeado desta pessoa. Espera-se
+        # um instante depois de a seleção parar, para não pedir cadeados a cada tecla.
+        self.temporizador_cadeados = QTimer(self)
+        self.temporizador_cadeados.setSingleShot(True)
+        self.temporizador_cadeados.setInterval(350)
+        self.temporizador_cadeados.timeout.connect(self.pedir_cadeados)
+        self.dias.selectionModel().selectionChanged.connect(
+            lambda *_: self.temporizador_cadeados.start()
+        )
+
         # Com um servidor, a grelha vai buscar de tempos a tempos o que os outros gravaram.
         self.botao_atualizar.clicked.connect(lambda: self.atualizar(manual=True))
         self.temporizador = QTimer(self)
@@ -508,6 +519,27 @@ class EcraPresencas(QWidget):
                 f"Copiei {copiadas} marcações para a semana de {segunda:%d/%m} a {domingo:%d/%m}. "
                 "Ctrl+Z desfaz."
             )
+
+    def pedir_cadeados(self) -> dict:
+        """Fica com o cadeado dos funcionários das células selecionadas (e larga os outros).
+        Devolve os que não conseguiu, por estarem em uso por outra pessoa."""
+        selecionados = {
+            celula[0].id
+            for celula in (self.modelo.celula(i) for i in self.dias.selectedIndexes())
+            if celula is not None
+        }
+        try:
+            recusados = bloqueios.definir(self.sessao, selecionados)
+        except SQLAlchemyError:
+            return {}
+        if recusados:
+            self.modelo.atualizar()
+            quem = sorted({c.nome for c in recusados.values()})
+            self._mostrar_erro(
+                f"{len(recusados)} funcionário(s) selecionado(s) estão em uso por "
+                f"{', '.join(quem)}: ficam só de leitura até essa pessoa sair deles."
+            )
+        return recusados
 
     def atualizar(self, manual: bool = False) -> bool:
         """Mostra o que as outras pessoas gravaram entretanto. Não interrompe quem está a

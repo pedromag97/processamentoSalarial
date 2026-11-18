@@ -193,6 +193,9 @@ def aplicar_alteracoes(
         }
         # Enquanto alguém fecha um mês, espera-se; depois vê-se o mês já fechado.
         concorrencia.alterar_marcacoes(sessao)
+        from . import bloqueios  # importado aqui para evitar uma dependência circular
+
+        bloqueios.exigir_livres(sessao, ids)
         fechados = meses_fechados(sessao)
         for tid, dia in pedidas:
             if (trabalhadores[tid].empresa_id, dia.year, dia.month) in fechados:

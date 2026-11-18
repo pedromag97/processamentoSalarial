@@ -293,6 +293,7 @@ def test_a_interface_nao_fica_com_uma_transacao_aberta(app, servidor):
     assert janela.temporizador.isActive()
     for nome in janela.ecras:
         janela.mostrar(nome)
+    janela.sessao.scalars(select(Trabalhador)).first()  # uma leitura qualquer
     with servidor() as de_fora:
         assert transacoes_abertas(de_fora) == 1  # a sessão da janela, depois de ler
         de_fora.rollback()
@@ -344,6 +345,6 @@ def test_varios_pcs_a_abrir_ao_mesmo_tempo_correm_as_migracoes_um_de_cada_vez(ur
     assert erros == []
     engine = db.criar_engine(url_pg)
     with engine.connect() as ligacao:
-        assert ligacao.scalar(text("SELECT version_num FROM alembic_version")) == "0003"
+        assert ligacao.scalar(text("SELECT version_num FROM alembic_version")) == "0004"
         assert ligacao.scalar(select(func.count()).select_from(Trabalhador)) == 0
     engine.dispose()

@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
-from .. import __version__, backups, concorrencia, config, contas
+from .. import __version__, backups, bloqueios, concorrencia, config, contas
 from ..modelos import (
     PERFIL_ADMIN,
     CodigoPresenca,
@@ -201,6 +201,18 @@ class JanelaPrincipal(QMainWindow):
         self.temporizador.timeout.connect(self._libertar_ligacao)
         self.temporizador.start()
 
+        # Enquanto o programa estiver aberto, os cadeados desta pessoa mantêm-se válidos.
+        self.temporizador_cadeados = QTimer(self)
+        self.temporizador_cadeados.setInterval(bloqueios.INTERVALO_RENOVACAO_MS)
+        self.temporizador_cadeados.timeout.connect(self._renovar_cadeados)
+        self.temporizador_cadeados.start()
+
+    def _renovar_cadeados(self) -> None:
+        try:
+            bloqueios.renovar(self.sessao)
+        except SQLAlchemyError:
+            self.sessao.rollback()
+
     def _libertar_ligacao(self) -> None:
         try:
             concorrencia.libertar_leitura(self.sessao)
@@ -214,6 +226,11 @@ class JanelaPrincipal(QMainWindow):
                 # Com várias pessoas, o que está em memória pode já ter mudado no servidor.
                 self.sessao.expire_all()
             ecra.recarregar()  # os dados podem ter mudado noutro ecrã ou noutro PC
+            # Os cadeados da grelha só valem enquanto se está no ecrã de presenças.
+            if isinstance(ecra, EcraPresencas):
+                ecra.pedir_cadeados()
+            else:
+                bloqueios.largar(self.sessao)
         except SQLAlchemyError as erro:
             self.sessao.rollback()
             QMessageBox.warning(self, "LSC Presenças", mensagem_de_erro(erro))
@@ -235,6 +252,10 @@ class JanelaPrincipal(QMainWindow):
         self.close()
 
     def closeEvent(self, evento) -> None:
+        try:
+            bloqueios.largar(self.sessao)  # ao sair, ninguém fica bloqueado por esta pessoa
+        except SQLAlchemyError:
+            pass  # sem ligação: caducam sozinhos ao fim de 90 segundos
         self.sessao.close()
         super().closeEvent(evento)
 
