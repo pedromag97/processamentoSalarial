@@ -70,6 +70,7 @@ def abrir_base_de_dados():
         except Exception as erro:  # noqa: BLE001
             if not config.usa_servidor():
                 raise
+            _registar_erro()  # o detalhe técnico fica em erro.log; o ecrã mostra o resumo
             app = QApplication.instance() or QApplication(sys.argv)
             dialogo = DialogoLigacao(
                 erro=servidor.explicar(erro)
@@ -84,7 +85,11 @@ def abrir_base_de_dados():
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["migrar"]:
-        preparar_bd()
+        try:
+            preparar_bd()
+        except Exception:
+            print(_registar_erro(), file=sys.stderr)
+            return 1
         print(f"Base de dados atualizada: {config.descricao_bd()}")
         return 0
 
@@ -102,13 +107,22 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
-def _mostrar_erro_de_arranque() -> None:
-    """Sem consola (pythonw), um erro ao arrancar não se via: grava-se e mostra-se numa caixa."""
+def _registar_erro() -> str:
+    """Grava o erro em curso em `erro.log`, na pasta de dados, e devolve o texto."""
     import traceback
 
     detalhe = traceback.format_exc()
+    try:
+        (config.pasta_app() / "erro.log").write_text(detalhe, encoding="utf-8")
+    except OSError:
+        pass
+    return detalhe
+
+
+def _mostrar_erro_de_arranque() -> None:
+    """Sem consola (pythonw), um erro ao arrancar não se via: grava-se e mostra-se numa caixa."""
+    detalhe = _registar_erro()
     registo = config.pasta_app() / "erro.log"
-    registo.write_text(detalhe, encoding="utf-8")
     print(detalhe, file=sys.stderr)
     try:
         from PySide6.QtWidgets import QApplication, QMessageBox

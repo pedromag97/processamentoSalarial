@@ -282,6 +282,7 @@ def pedir_login(sessao: Session) -> Utilizador | None:
     Devolve a conta autenticada, ou None se a pessoa cancelou.
     """
     primeira = not contas.ha_contas(sessao)
+    sessao.rollback()  # enquanto o diálogo espera, não fica uma transação aberta no servidor
     dialogo = DialogoConta(sessao, primeira=True) if primeira else DialogoLogin(sessao)
     dialogo.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
 

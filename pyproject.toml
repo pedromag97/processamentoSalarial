@@ -1,6 +1,6 @@
 [project]
 name = "lsc-presencas"
-version = "1.0.0"
+version = "2.0.0"
 description = "Presenças e pré-processamento salarial do Groupe LSC"
 requires-python = ">=3.12,<3.13"
 dependencies = [

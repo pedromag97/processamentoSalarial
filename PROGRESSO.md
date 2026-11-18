@@ -2,8 +2,8 @@
 
 ## Marco atual
 
-**Marco 10 concluído** (2026-11-18): várias pessoas ao mesmo tempo sobre o mesmo servidor. À
-espera da aprovação do Pedro para o marco 11.
+**Marco 11 concluído** (2026-11-18), versão 2.0.0. Em curso: cadeados nos funcionários. À
+espera de o Pedro instalar o servidor e a VPN a sério.
 
 Os sete marcos da especificação original estão feitos (versão 1.0.0). A 2026-11-18 o Pedro
 pediu contas de login e uma base de dados única do Grupo LSC, usada por várias pessoas ao
@@ -17,10 +17,7 @@ confirmá-los com o contabilista.
 
 ## Próximo passo
 
-Marco 11: instalação. Guia passo a passo do servidor PostgreSQL num PC do escritório, da VPN
-e da cópia de segurança agendada no servidor; executável novo; teste entre dois PCs. O
-executável com os marcos 9 e 10 ainda tem de ser reconstruído e experimentado (o controlador
-do PostgreSQL e o cofre do Windows dentro do `.exe` nunca foram testados).
+Acabar os cadeados nos funcionários (tabela, ecrãs, testes) e reconstruir o executável.
 
 Em paralelo, o Pedro experimenta a app com dados reais (importação da `s-27`, valores com o
 contabilista, um mês completo, fecho e ficheiros).
@@ -150,9 +147,26 @@ contabilista, um mês completo, fecho e ficheiros).
 - [ ] Não tratado: duas pessoas a editar a mesma ficha, tabela ou lançamento ao mesmo tempo
       (fica a última gravação; as fichas e os lançamentos ficam na auditoria)
 
-### Marcos seguintes (plano aprovado a 2026-11-18)
-- [ ] 10 — Uso em simultâneo: a grelha atualiza-se, conflitos na mesma célula, fecho seguro
-- [ ] 11 — Instalação: guia do servidor e da VPN, executável novo, teste entre dois PCs
+### Marco 11 — instalação
+- [x] `docs/INSTALACAO.md`: servidor PostgreSQL, rede e firewall, VPN, cópias agendadas no
+      servidor, ligar o primeiro PC e enviar os dados, ligar os outros PCs, atualizar, problemas
+- [x] `scripts/servidor/criar_base_de_dados.sql` (experimentado num PostgreSQL de teste) e
+      `copia_seguranca.cmd` (nunca correu num PostgreSQL instalado a sério)
+- [x] `scripts/Instalar.cmd`: copiado para dentro da pasta do programa; instala em
+      `%LOCALAPPDATA%\Programs\LSC-Presencas` e cria os atalhos. Não foi experimentado
+- [x] Executável 2.0.0 com o controlador do PostgreSQL e o cofre do Windows. Ensaiado contra
+      um servidor de teste: cria as tabelas, lê a palavra-passe do cofre, e duas instâncias
+      abrem ao mesmo tempo sobre a mesma base de dados
+- [x] Erro encontrado no ensaio: o PyInstaller empacotava o OpenSSL do Git em vez do do
+      Python (`DLL load failed while importing _ssl`). O `empacotar.cmd` força o do Python
+- [x] Erros de ligação ao arrancar ficam em `erro.log`
+- [ ] Por fazer pelo Pedro: instalar o PostgreSQL e a VPN a sério, e testar entre dois PCs
+
+### Depois do marco 11 (pedido do Pedro a 2026-11-18)
+- [ ] Cadeado: um funcionário fica bloqueado para os outros enquanto alguém tem a ficha dele
+      aberta ou células dele selecionadas na grelha (`bloqueios.py` escrito; falta a tabela,
+      os ecrãs e os testes)
+
 
 ### Por validar pelo Pedro (critérios de aceitação)
 - [ ] Marcar um mês para 70 trabalhadores em menos de 10 minutos

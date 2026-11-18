@@ -165,6 +165,11 @@ tests/
   `concorrencia.libertar_leitura()` de 2 em 2 s para não deixar transações abertas, e faz
   `expire_all()` ao mudar de ecrã. Qualquer operação nova que dependa de "o mês está
   aberto" tem de pedir o bloqueio partilhado primeiro.
+- **Empacotar:** o `empacotar.cmd` força o OpenSSL do próprio Python (`--add-binary` e PATH).
+  Sem isso o PyInstaller apanha o do Git ou do MSYS e o `_ssl` não carrega dentro do `.exe`
+  (a ligação ao servidor falha). Depois de empacotar, ensaiar sempre o `.exe` contra um
+  servidor de teste (`pgserver`), porque os testes correm fora do `.exe`. O guia de
+  instalação com servidor está em `docs/INSTALACAO.md`.
 - **Atenção ao `%LOCALAPPDATA%` dentro da app Claude (Windows):** o que o Claude Code grava aí
   é redirecionado para `AppData\Local\Packages\Claude_…\LocalCache\Local\`. Por isso o venv,
   a base de dados de desenvolvimento e a pasta `dist` das sessões do Claude não são os mesmos
