@@ -263,6 +263,9 @@ class JanelaPrincipal(QMainWindow):
 def aplicacao() -> QApplication:
     """A aplicação Qt, com o símbolo do programa em todas as janelas e na barra de tarefas."""
     app = QApplication.instance() or QApplication(sys.argv)
+    # As cores da grelha (códigos, fins de semana, grupos) foram escolhidas para fundo claro.
+    # Num Windows em modo escuro o Qt punha o texto a branco e ficavam ilegíveis.
+    app.styleHints().setColorScheme(Qt.ColorScheme.Light)
     if config.caminho_icone().is_file():
         app.setWindowIcon(QIcon(str(config.caminho_icone())))
     return app
