@@ -142,14 +142,18 @@ As cópias do servidor fazem-se no servidor, todos os dias, sem depender de ning
 5. Copiar essa pasta regularmente para fora do edifício (disco externo ou nuvem). Uma cópia
    que está no mesmo PC não protege contra roubo, incêndio ou avaria do disco.
 
-**Para repor uma cópia** (com o programa fechado em todos os PCs):
+**Para repor uma cópia** usa-se o `scripts\servidor\repor_copia.cmd`, copiado para a mesma
+pasta do `copia_seguranca.cmd` e com as mesmas linhas do topo ajustadas:
 
-```
-"C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" -h localhost -U lsc_app -d lsc_presencas --clean --if-exists ficheiro.dump
-```
+- **Ensaio** (duplo clique, ou `repor_copia.cmd "ficheiro.dump"`): repõe a cópia numa base de
+  dados à parte, `lsc_presencas_teste`, mostra quantos registos tem e pergunta se a apaga. Não
+  toca nos dados verdadeiros. Pede a palavra-passe do `postgres` para criar essa base de
+  dados, e a linha do `pgpass.conf` tem de ter `*` no lugar do nome da base de dados.
+- **A sério** (`repor_copia.cmd "ficheiro.dump" --a-serio`): substitui os dados verdadeiros.
+  Exige escrever `REPOR`, recusa se o programa estiver aberto nalgum PC, faz antes uma cópia
+  do que lá está, e a reposição é tudo ou nada.
 
-Experimentar repor uma cópia pelo menos uma vez, numa base de dados de teste, antes de
-precisar a sério.
+Fazer o ensaio pelo menos uma vez antes de precisar a sério, e de vez em quando depois.
 
 Além destas, o programa descarrega uma cópia para o PC do administrador antes de fechar ou
 reabrir um mês, e quando ele carrega em "Fazer uma cópia de segurança agora". Essas cópias são

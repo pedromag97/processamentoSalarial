@@ -11,7 +11,7 @@ set "PASTA=%APPDATA%\postgresql"
 set "FICHEIRO=%PASTA%\pgpass.conf"
 
 if not exist "%PASTA%" mkdir "%PASTA%"
-if not exist "%FICHEIRO%" >"%FICHEIRO%" echo localhost:5432:lsc_presencas:lsc_app:A_PALAVRA_PASSE_DA_APP
+if not exist "%FICHEIRO%" >"%FICHEIRO%" echo localhost:5432:*:lsc_app:A_PALAVRA_PASSE_DA_APP
 
 echo Troca A_PALAVRA_PASSE_DA_APP pela palavra-passe do lsc_app, guarda e fecha o Bloco de Notas.
 notepad "%FICHEIRO%"
