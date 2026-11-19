@@ -228,6 +228,12 @@ As regras foram lidas das fórmulas do Excel real (só leitura; nada copiado par
       uma linha GER escrita à mão)
 - [ ] Um mês fechado antes do marco 14 não tem folha guardada: aparece «sem folha» e os
       ficheiros saem como antes. Para a ter, reabrir e voltar a fechar
+- [x] Linhas GER habituais (pedido do Pedro, 2026-11-19): ao abrir o ecrã «Salários», quem
+      não tem nenhuma linha GER recebe as seis do Excel (Aj.PT e Aj.ES: CH+VIAT+PROD por dia
+      com valor mensal, deslocação por noite, banco de horas), sem valor. Os valores
+      escrevem-se na ficha. Quem já tem linhas, mesmo inativas, fica como está
+- [ ] As quantidades GER continuam a escrever-se à mão no mês; no Excel contavam-se das
+      colunas «c», «d» e horas da folha de ponto. Perguntar ao Pedro se as quer na grelha
 - [ ] A versão não foi incrementada (continua 2.0.0)
 
 Regras da folha (decididas pelo Pedro; as marcadas com * são para o contabilista confirmar):

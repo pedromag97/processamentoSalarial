@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 from PySide6.QtCore import Qt
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from lsc_presencas import fecho, salarios
 from lsc_presencas.modelos import (
@@ -241,3 +241,15 @@ def test_exportar_a_partir_do_ecra_de_salarios(bd, pasta_da_app):
     assert pasta_da_app in feito.pasta.parents and "provisório" in feito.pasta.name
     assert feito.excel.is_file() and len(feito.pdfs) == 2
     assert "PROVISÓRIOS" in ecra.mensagem.text()
+
+
+def test_quem_nao_tem_linhas_ger_recebe_as_seis_do_excel(bd):
+    ecra = ecra_em(bd)
+    ecra.lista.selectRow(1)  # o Rui não tinha nenhuma linha na ficha
+    linhas = celulas(ecra)
+    for nome, _, _ in salarios.LINHAS_GER_HABITUAIS:
+        assert linhas[nome][5] == "0,00 €"
+    assert "Prevenção" not in linhas
+    ecra.lista.selectRow(0)  # a Ana já tinha as dela: ficam como estavam
+    assert "Aj.PT (CH+VIAT+PROD)" not in celulas(ecra)
+    assert bd.scalar(select(func.count()).select_from(LinhaGer)) == 8

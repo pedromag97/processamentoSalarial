@@ -177,6 +177,10 @@ class EcraSalarios(QWidget):
             if self.fechado:
                 self.folhas = self._folhas_do_fecho(ano, mes)
             else:
+                try:  # as seis linhas GER do Excel, para quem ainda não tem nenhuma
+                    salarios.criar_linhas_habituais(self.sessao, self.empresa_id)
+                except Exception:  # noqa: BLE001 - sem elas a folha mostra-se na mesma
+                    self.sessao.rollback()
                 self.folhas = salarios.folhas_do_mes(self.sessao, self.empresa_id, ano, mes)
             self.sessao.rollback()  # só leitura: não deixa uma transação aberta
         self.botao_exportar.setEnabled(bool(self.folhas))

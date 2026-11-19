@@ -22,8 +22,10 @@ from .modelos import (
     FOLHA_FALTA,
     FOLHA_FERIAS,
     FOLHA_TRABALHO,
+    GER_MENSAL,
     GER_QUANTIDADE_MANUAL,
     GER_QUANTIDADE_PREVENCAO,
+    GER_UNITARIO,
     FolhaMes,
     LancamentoManual,
     LinhaGer,
@@ -187,6 +189,62 @@ def folhas_do_mes(sessao: Session, empresa_id: int, ano: int, mes: int) -> list[
         if com_contrato or t.id in com_marcacoes or t.id in com_lancamentos:
             folhas.append(folha_do_trabalhador(sessao, t, ano, mes))
     return folhas
+
+
+# --- As linhas GER habituais ------------------------------------------------------------------
+
+# As seis linhas do bloco GER da folha Excel «Simulação salário»: (nome, unidade, base).
+# Os valores combinam-se com cada trabalhador e escrevem-se na ficha: aqui não há nenhum.
+LINHAS_GER_HABITUAIS = (
+    ("Aj.PT (CH+VIAT+PROD)", "dia", GER_MENSAL),
+    ("Aj.PT Desloq (por noite)", "noite", GER_UNITARIO),
+    ("Aj.PT Banco de horas (sáb + horas)", "hora", GER_UNITARIO),
+    ("Aj.ES (CH+VIAT+PROD)", "dia", GER_MENSAL),
+    ("Aj.ES Desloq (por noite)", "noite", GER_UNITARIO),
+    ("Aj.ES Banco de horas (sáb + horas)", "hora", GER_UNITARIO),
+)
+
+
+def criar_linhas_habituais(sessao: Session, empresa_id: int) -> int:
+    """Dá as seis linhas GER do Excel (sem valor) aos trabalhadores da empresa que ainda não
+    têm nenhuma linha. Quem já tem linhas, mesmo inativas, fica como está. Faz o commit e
+    devolve o número de trabalhadores a que acrescentou linhas."""
+    com_linhas = select(LinhaGer.trabalhador_id).distinct()
+
+    def em_falta() -> list[Trabalhador]:
+        return list(
+            sessao.scalars(
+                select(Trabalhador)
+                .where(Trabalhador.empresa_id == empresa_id, Trabalhador.id.not_in(com_linhas))
+                .order_by(Trabalhador.numero)
+            )
+        )
+
+    try:
+        if not em_falta():
+            return 0
+        concorrencia.fechar_ou_reabrir(sessao)  # um PC de cada vez, para não haver linhas a dobrar
+        trabalhadores = em_falta()
+        for t in trabalhadores:
+            for ordem, (nome, unidade, base) in enumerate(LINHAS_GER_HABITUAIS, start=1):
+                sessao.add(
+                    LinhaGer(
+                        trabalhador_id=t.id, ordem=ordem, nome=nome, unidade=unidade, base=base
+                    )
+                )
+            auditoria.registar(
+                sessao,
+                "linha_ger",
+                t.id,
+                "criar",
+                None,
+                {"trabalhador": t.numero, "linhas": [x[0] for x in LINHAS_GER_HABITUAIS]},
+            )
+        sessao.commit()
+        return len(trabalhadores)
+    except Exception:
+        sessao.rollback()
+        raise
 
 
 # --- Gravar os valores escritos à mão ---------------------------------------------------------

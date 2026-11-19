@@ -279,3 +279,28 @@ def test_folhas_do_mes_da_empresa(bd, ana):
     marcar(bd, quinto, {2: "P"})
     folhas = salarios.folhas_do_mes(bd, ana.empresa_id, ANO, MES)
     assert [f.numero for f in folhas] == [1, 5]
+
+
+def test_linhas_ger_habituais_so_para_quem_nao_tem_nenhuma(bd, ana):
+    linha_ger(bd, ana, "Combinada à parte", "dia", D("10"))
+    rui = Trabalhador(numero=2, nome="Rui Exemplo", empresa_id=ana.empresa_id)
+    bd.add(rui)
+    bd.commit()
+    outros = [rui]
+    assert salarios.criar_linhas_habituais(bd, ana.empresa_id) == 1
+    assert salarios.criar_linhas_habituais(bd, ana.empresa_id) == 0  # não repete
+
+    da_ana = bd.scalars(select(LinhaGer).where(LinhaGer.trabalhador_id == ana.id)).all()
+    assert [x.nome for x in da_ana] == ["Combinada à parte"]
+    novas = bd.scalars(
+        select(LinhaGer).where(LinhaGer.trabalhador_id == outros[0].id).order_by(LinhaGer.ordem)
+    ).all()
+    assert [x.nome for x in novas] == [x[0] for x in salarios.LINHAS_GER_HABITUAIS]
+    assert all(x.valor is None for x in novas)  # os valores escrevem-se na ficha
+    # Sem valor e sem quantidade a folha não fica por calcular; com quantidade, dá erro.
+    f = salarios.folha_do_trabalhador(bd, outros[0], ANO, MES)
+    assert len(f.folha.linhas_ger) == 6 and f.folha.total_ger == 0
+    assert "ger_sem_valor" not in f.folha.chaves_de_alerta()
+    salarios.gravar_quantidade(bd, novas[1].id, ANO, MES, D("3"))
+    f = salarios.folha_do_trabalhador(bd, outros[0], ANO, MES)
+    assert "ger_sem_valor" in f.folha.chaves_de_alerta()
