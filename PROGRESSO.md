@@ -190,6 +190,40 @@ contabilista, um mês completo, fecho e ficheiros).
       abertas
 
 
+### Marco 12 — folha de salário: regras (pedido do Pedro a 2026-11-19)
+
+Mudança de âmbito: a app passa a ir do ilíquido ao valor a pagar, com a folha «Simulação
+salário» que o Pedro usa em Excel (bloco RC, bloco GER, líquido, adiantamentos, a pagar).
+As regras foram lidas das fórmulas do Excel real (só leitura; nada copiado para o repo).
+
+- [x] `folha_salario.py` (puro) e `tests/test_folha_salario.py`: dias de trabalho do mês,
+      Presenças, subsídio de alimentação, subsídios de férias e de Natal em duodécimos,
+      férias, baixa, faltas, IRS, Segurança Social, linhas GER, líquido e a pagar
+- [ ] Marco 13: modelo e migração (duodécimos e linhas GER na ficha, IRS e quantidades do
+      mês, taxa de Segurança Social nos parâmetros) e ecrã «Salários»
+- [ ] Marco 14: PDF da folha por trabalhador, Excel com todos, fotografia do fecho
+- [ ] Até ao marco 13, o Fecho do mês continua a mostrar o cálculo antigo (divisor 30,
+      «total ilíquido estimado»). A folha nova substitui-o nessa altura
+
+Regras da folha (decididas pelo Pedro; as marcadas com * são para o contabilista confirmar):
+1. Valor por dia = vencimento base / dias de trabalho do mês (segunda a sexta, sem feriados).
+2. Presenças = valor por dia × dias trabalhados. Férias pagam-se ao mesmo valor por dia.
+3. * Cada dia de baixa ou de falta, além de não ser pago, desconta um dia (como a fórmula do
+   Excel, que soma as linhas todas). O Pedro respondeu «descontam no ordenado»; mostrar-lhe
+   um exemplo com números para confirmar que é mesmo o desconto a dobrar.
+4. Subsídio de alimentação = valor por dia × dias trabalhados (bloco RC).
+5. Subsídios de férias e de Natal: duodécimo escrito na ficha / dias de trabalho × (dias
+   trabalhados + férias). Sem duodécimo na ficha, a linha não existe.
+6. IRS: valor escrito à mão em cada mês.
+7. * Segurança Social: calculada, taxa dos parâmetros × bloco RC antes dos descontos; do
+   subsídio de alimentação só entra a parte acima do limite de isenção (pressuposto meu: sem
+   limite definido, não entra e há aviso). No Excel o valor era escrito à mão.
+8. Bloco GER: linhas por trabalhador (nome, unidade, valor), com valor unitário, mensal
+   (÷ dias de trabalho) ou semanal (÷ 7); quantidades do mês escritas à mão, exceto as que a
+   grelha já sabe (dias trabalhados, férias, faltas, baixa, prevenção). «S/hp Prev» fica fora.
+9. Líquido = RC + GER. A pagar = líquido + adiantamentos (negativos).
+10. Fora do âmbito por agora: bloco de custo para a empresa (encargos) que existe no Excel.
+
 ### Por validar pelo Pedro (critérios de aceitação)
 - [ ] Marcar um mês para 70 trabalhadores em menos de 10 minutos
 - [ ] Aspeto do PDF e colunas do Excel-resumo
