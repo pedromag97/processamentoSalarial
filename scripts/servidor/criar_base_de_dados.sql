@@ -4,6 +4,9 @@
 --
 --     psql -U postgres -f criar_base_de_dados.sql
 --
+-- No pgAdmin (Query Tool): selecionar e executar (F5) UMA instrução de cada vez. Tudo de
+-- seguida falha com «CREATE DATABASE cannot run inside a transaction block».
+--
 -- ANTES de correr: troca TROCAR_ESTA_PALAVRA_PASSE por uma palavra-passe forte, só para a app.
 -- É essa palavra-passe (e o utilizador lsc_app) que se escreve em «Ligação ao servidor…».
 -- Não a guardes neste ficheiro depois de o correr.

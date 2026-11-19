@@ -54,6 +54,12 @@ ficheiro desse PC e o programa funciona como sempre.
 
 4. Apagar o ficheiro (ou voltar a pôr o texto original), para a palavra-passe não ficar lá.
 
+**Em alternativa, pelo pgAdmin 4:** abrir `Databases`, botão direito em `postgres` → *Query Tool*,
+abrir o ficheiro e trocar a palavra-passe. O pgAdmin corre o ficheiro inteiro numa só transação e
+o `CREATE DATABASE` falha assim («cannot run inside a transaction block»): selecionar e executar
+(F5) **uma instrução de cada vez** — primeiro o `CREATE ROLE`, depois o `CREATE DATABASE`, depois
+o `REVOKE` e o `GRANT`. No fim, fechar sem guardar o ficheiro e limpar o *Query History*.
+
 Fica criado o utilizador `lsc_app` e a base de dados `lsc_presencas`, vazia. As tabelas são
 criadas pelo programa na primeira ligação.
 
