@@ -304,3 +304,19 @@ def test_linhas_ger_habituais_so_para_quem_nao_tem_nenhuma(bd, ana):
     salarios.gravar_quantidade(bd, novas[1].id, ANO, MES, D("3"))
     f = salarios.folha_do_trabalhador(bd, outros[0], ANO, MES)
     assert "ger_sem_valor" in f.folha.chaves_de_alerta()
+
+
+def test_quantidade_ger_contada_das_presencas(bd, ana):
+    marcar(bd, ana, {2: "P", 3: "PF", 4: "PF", 5: "PR", 6: "FE", 9: "FI"})
+    todos = linha_ger(
+        bd, ana, "Aj. geral", "dia", D("210"), base=GER_MENSAL, quantidade_de="trabalho", ordem=1
+    )
+    linha_ger(bd, ana, "Aj. FR", "dia", D("1500"), base=GER_MENSAL, quantidade_de="franca", ordem=2)
+    f = salarios.folha_do_trabalhador(bd, ana, ANO, MES)
+    assert [(x.descricao, x.quantidade, x.total) for x in f.folha.linhas_ger] == [
+        ("Aj. geral", D("4"), D("40.00")),  # P, PF, PF e PR
+        ("Aj. FR", D("2"), D("142.86")),  # só os dois dias em França
+    ]
+    assert [manual for _, manual in f.linhas_ger] == [False, False]
+    with pytest.raises(ValueError, match="grelha de presenças"):
+        salarios.gravar_quantidade(bd, todos.id, ANO, MES, D("9"))

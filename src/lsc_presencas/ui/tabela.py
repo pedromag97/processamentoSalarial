@@ -60,6 +60,8 @@ class Coluna:
     # Coluna calculada, só de leitura.
     obter: Callable[[Any], Any] | None = None
     dica: str | None = None
+    # Taxa guardada em fração (0,11 = 11%): aceita «11%» e recusa valores de 1 para cima.
+    fracao: bool = False
 
     @property
     def so_leitura(self) -> bool:
@@ -82,7 +84,16 @@ def formatar(coluna: Coluna, valor) -> str:
 
 def interpretar(coluna: Coluna, texto: str):
     """Converte o texto escrito no valor da coluna. Levanta ValueError se for inválido."""
-    if coluna.tipo == DECIMAL:
+    if coluna.tipo == DECIMAL and coluna.fracao:
+        em_percentagem = texto.strip().endswith("%")
+        valor = ler_decimal(texto.strip().rstrip("%"))
+        if valor is not None and em_percentagem:
+            valor = valor / 100
+        if valor is not None and not 0 <= valor < 1:
+            raise ValueError(
+                f"«{coluna.titulo}»: escreva a taxa como 0,11 ou como 11% (as duas dão 11%)."
+            )
+    elif coluna.tipo == DECIMAL:
         valor = ler_decimal(texto)
     elif coluna.tipo == INTEIRO:
         valor = ler_inteiro(texto)
@@ -170,6 +181,24 @@ class ModeloTabela(QAbstractTableModel):
 
     def pendente(self, obj) -> bool:
         return id(obj) in self._pendentes
+
+    def por_gravar(self) -> list[str]:
+        """Uma frase por cada linha nova que ainda não foi gravada, a dizer o que lhe falta."""
+        frases = []
+        for obj in self.linhas:
+            if not self.pendente(obj):
+                continue
+            falta = [
+                f"«{c.titulo}»"
+                for c in self.colunas
+                if c.obrigatorio and not c.so_leitura and vazio(getattr(obj, c.campo))
+            ]
+            frases.append(
+                "Linha nova ainda NÃO gravada: falta preencher " + ", ".join(falta) + "."
+                if falta
+                else "Linha nova ainda NÃO gravada."
+            )
+        return frases
 
     def valor(self, obj, coluna: Coluna):
         return coluna.obter(obj) if coluna.obter else getattr(obj, coluna.campo)
@@ -434,10 +463,15 @@ class VistaTabela(QWidget):
 
         self.botao_novo.clicked.connect(self.novo)
         self.botao_apagar.clicked.connect(self.apagar)
-        modelo.erro.connect(self.estado.setText)
+        modelo.erro.connect(self._mostrar_erro)
         modelo.alterado.connect(self._atualizar_aviso)
-        modelo.alterado.connect(lambda: self.estado.setText(""))
+        modelo.alterado.connect(lambda: self._mostrar_erro(""))
         self._atualizar_aviso()
+
+    def _mostrar_erro(self, texto: str) -> None:
+        """A linha a vermelho por baixo da tabela: o erro da última alteração e, sempre, as
+        linhas novas que ainda não estão gravadas (para não se perderem sem aviso)."""
+        self.estado.setText("\n".join([*([texto] if texto else []), *self.modelo.por_gravar()]))
 
     def _atualizar_aviso(self) -> None:
         n = self.modelo.n_avisos()
@@ -475,6 +509,7 @@ class VistaTabela(QWidget):
         if self.modelo.bloqueada:
             return
         linha = self.modelo.novo()
+        self._mostrar_erro("")
         coluna = next(
             (n for n, c in enumerate(self.modelo.colunas) if not c.so_leitura and c.tipo != BOOL), 0
         )

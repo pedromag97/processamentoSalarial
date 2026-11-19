@@ -15,8 +15,10 @@ from ..modelos import (
     FOLHA_NADA,
     FOLHA_TRABALHO,
     GER_MENSAL,
+    GER_QUANTIDADE_FRANCA,
     GER_QUANTIDADE_MANUAL,
     GER_QUANTIDADE_PREVENCAO,
+    GER_QUANTIDADE_TRABALHO,
     GER_SEMANAL,
     GER_UNITARIO,
     PAIS_FRANCA,
@@ -50,6 +52,8 @@ BASES_GER = [
 ]
 QUANTIDADES_GER = [
     (GER_QUANTIDADE_MANUAL, "Escreve-se em cada mês"),
+    (GER_QUANTIDADE_TRABALHO, "Dias trabalhados da grelha"),
+    (GER_QUANTIDADE_FRANCA, "Dias trabalhados em França da grelha"),
     (GER_QUANTIDADE_PREVENCAO, "Dias de prevenção da grelha"),
 ]
 
@@ -188,7 +192,8 @@ COLUNAS_PARAMETROS = [
         "Taxa de Segurança Social",
         DECIMAL,
         aviso_vazio=True,
-        dica="Em fração: 0,11 = 11%. A confirmar com o contabilista.",
+        dica="Escreva 0,11 ou 11% (as duas dão 11%). A confirmar com o contabilista.",
+        fracao=True,
     ),
 ]
 

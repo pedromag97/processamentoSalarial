@@ -352,3 +352,40 @@ def test_navegacao_da_janela_principal(app, fabrica):
     assert ecra.modelo.rowCount() == 24
     assert janela.mostrar("Tabelas") is janela.pilha.currentWidget()
     janela.close()
+
+
+def test_taxa_escreve_se_em_fracao_ou_em_percentagem(ui):
+    modelo = ModeloTabela(ui, ParametrosEmpresa, d.COLUNAS_PARAMETROS)
+    erros = erros_de(modelo)
+    for texto in ("0,11", "11%", "11 %"):
+        assert escrever(modelo, 0, "taxa_seguranca_social", texto)
+        ui.expire_all()
+        assert modelo.linhas[0].taxa_seguranca_social == Decimal("0.11")
+    assert not escrever(modelo, 0, "taxa_seguranca_social", "11")  # seria 1100%
+    assert "0,11 ou como 11%" in erros[-1]
+    ui.expire_all()
+    assert modelo.linhas[0].taxa_seguranca_social == Decimal("0.11")
+
+
+def test_linha_nova_por_gravar_avisa_do_que_falta(ui):
+    ecra = EcraTabelas(ui)
+    vista = ecra.vistas["Parâmetros por empresa"]
+    modelo = vista.modelo
+    assert vista.estado.text() == ""
+    vista.novo()
+    linha = modelo.rowCount() - 1
+    assert "NÃO gravada" in vista.estado.text()
+    assert "«Empresa», «Em vigor desde»" in vista.estado.text()
+
+    # Escrever um valor não grava a linha, e o aviso continua lá.
+    assert escrever(modelo, linha, "taxa_seguranca_social", "0,11")
+    assert contar(ui, ParametrosEmpresa) == 2
+    assert "falta preencher «Empresa», «Em vigor desde»" in vista.estado.text()
+
+    empresa = ui.scalars(select(Empresa)).first()
+    assert escrever(modelo, linha, "empresa_id", empresa.id)
+    assert "falta preencher «Em vigor desde»" in vista.estado.text()
+    assert escrever(modelo, linha, "inicio_vigencia", "01/07/2027")
+    assert contar(ui, ParametrosEmpresa) == 3 and vista.estado.text() == ""
+    ui.expire_all()
+    assert modelo.linhas[linha].taxa_seguranca_social == Decimal("0.11")

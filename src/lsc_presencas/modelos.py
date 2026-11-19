@@ -166,6 +166,8 @@ GER_SEMANAL = "semanal"
 # De onde vem a quantidade do mês de uma linha GER.
 GER_QUANTIDADE_MANUAL = "manual"  # escreve-se no ecrã «Salários»
 GER_QUANTIDADE_PREVENCAO = "prevencao"  # dias marcados na grelha com um código de prevenção
+GER_QUANTIDADE_TRABALHO = "trabalho"  # dias trabalhados (os mesmos da linha «Presenças»)
+GER_QUANTIDADE_FRANCA = "franca"  # dias trabalhados em França (códigos com ajuda de custo França)
 
 
 class LinhaGer(Base):

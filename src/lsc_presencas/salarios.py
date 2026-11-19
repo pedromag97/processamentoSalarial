@@ -18,14 +18,19 @@ from . import auditoria, bloqueios, concorrencia
 from . import folha_salario as fs
 from .consultas import parametros_em_vigor, salario_em_vigor
 from .modelos import (
+    AJUDA_CUSTO_SIM,
+    AJUDA_CUSTO_ZONA,
     FOLHA_BAIXA,
     FOLHA_FALTA,
     FOLHA_FERIAS,
     FOLHA_TRABALHO,
     GER_MENSAL,
+    GER_QUANTIDADE_FRANCA,
     GER_QUANTIDADE_MANUAL,
     GER_QUANTIDADE_PREVENCAO,
+    GER_QUANTIDADE_TRABALHO,
     GER_UNITARIO,
+    PAIS_FRANCA,
     FolhaMes,
     LancamentoManual,
     LinhaGer,
@@ -57,6 +62,16 @@ def _limites(ano: int, mes: int) -> tuple[date, date]:
     return date(ano, mes, 1), date(ano, mes, monthrange(ano, mes)[1])
 
 
+def _em_franca(m: Marcacao) -> bool:
+    """Dia trabalhado em França: o mesmo critério da ajuda de custo França dos códigos."""
+    if m.codigo.conta_folha != FOLHA_TRABALHO:
+        return False
+    regra = m.codigo.ajuda_custo_franca
+    if regra == AJUDA_CUSTO_ZONA:
+        return m.zona is not None and m.zona.pais == PAIS_FRANCA
+    return regra == AJUDA_CUSTO_SIM
+
+
 def folha_do_trabalhador(
     sessao: Session, trabalhador: Trabalhador, ano: int, mes: int
 ) -> FolhaTrabalhador:
@@ -76,7 +91,12 @@ def folha_do_trabalhador(
         )
     ).all()
     na_folha = Counter(m.codigo.conta_folha for m in marcacoes)
-    dias_prevencao = sum(1 for m in marcacoes if m.codigo.soma_prevencao)
+    # Quantidades das linhas GER que se contam da grelha (as outras escrevem-se à mão).
+    da_grelha = {
+        GER_QUANTIDADE_PREVENCAO: sum(1 for m in marcacoes if m.codigo.soma_prevencao),
+        GER_QUANTIDADE_TRABALHO: na_folha[FOLHA_TRABALHO],
+        GER_QUANTIDADE_FRANCA: sum(1 for m in marcacoes if _em_franca(m)),
+    }
 
     registo = sessao.scalar(
         select(FolhaMes).where(
@@ -102,8 +122,10 @@ def folha_do_trabalhador(
     }
     linhas_ger = []
     for linha in linhas:
-        manual = linha.quantidade_de != GER_QUANTIDADE_PREVENCAO
-        quantidade = escritas.get(linha.id, ZERO) if manual else Decimal(dias_prevencao)
+        if linha.quantidade_de in da_grelha:
+            quantidade = Decimal(da_grelha[linha.quantidade_de])
+        else:
+            quantidade = escritas.get(linha.id, ZERO)
         linhas_ger.append(
             fs.LinhaGer(linha.nome, linha.unidade, linha.valor, linha.base, quantidade)
         )
@@ -152,9 +174,7 @@ def folha_do_trabalhador(
         mes=mes,
         folha=folha,
         contagens=dict(Counter(m.codigo.codigo for m in marcacoes)),
-        linhas_ger=[
-            (linha.id, linha.quantidade_de != GER_QUANTIDADE_PREVENCAO) for linha in linhas
-        ],
+        linhas_ger=[(linha.id, linha.quantidade_de not in da_grelha) for linha in linhas],
         irs=irs,
     )
 

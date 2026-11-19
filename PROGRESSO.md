@@ -232,8 +232,15 @@ As regras foram lidas das fórmulas do Excel real (só leitura; nada copiado par
       não tem nenhuma linha GER recebe as seis do Excel (Aj.PT e Aj.ES: CH+VIAT+PROD por dia
       com valor mensal, deslocação por noite, banco de horas), sem valor. Os valores
       escrevem-se na ficha. Quem já tem linhas, mesmo inativas, fica como está
-- [ ] As quantidades GER continuam a escrever-se à mão no mês; no Excel contavam-se das
-      colunas «c», «d» e horas da folha de ponto. Perguntar ao Pedro se as quer na grelha
+- [x] Quantidade GER contada das presenças (pedido do Pedro, 2026-11-19): na ficha, em
+      «Ajudas (GER)», a coluna da quantidade tem agora «Dias trabalhados da grelha» e «Dias
+      trabalhados em França da grelha» (códigos com ajuda de custo França; os de «zona» só
+      contam com zona em França), além de «Escreve-se em cada mês» e da prevenção. Sem migração
+- [x] Tabelas (2026-11-19): uma linha nova que ainda não está gravada passa a dizer a
+      vermelho o que lhe falta (antes perdia-se sem aviso ao mudar de ecrã); a taxa de
+      Segurança Social aceita «0,11» ou «11%» e recusa «11»
+- [ ] Noites de deslocação e banco de horas continuam a escrever-se à mão no mês; no Excel
+      contavam-se das colunas «d» e horas da folha de ponto
 - [ ] A versão não foi incrementada (continua 2.0.0)
 
 Regras da folha (decididas pelo Pedro; as marcadas com * são para o contabilista confirmar):
