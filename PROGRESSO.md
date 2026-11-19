@@ -17,10 +17,12 @@ confirmá-los com o contabilista.
 
 ## Próximo passo
 
-O Pedro instala o servidor PostgreSQL e a VPN seguindo `docs/INSTALACAO.md`, liga dois PCs
-e experimenta com duas pessoas ao mesmo tempo. O que encontrar passa a ser a lista de trabalho.
+O servidor está montado desde 2026-11-19 (PostgreSQL 18 no PC do Pedro, só para a rede do
+escritório, sem VPN por decisão dele) e um segundo PC já se liga, com o cadeado a funcionar.
+Falta: uma conta por pessoa, experimentar repor uma cópia de segurança numa base de teste, e
+a VPN se um dia for preciso trabalhar de fora.
 
-Em paralelo, o Pedro experimenta a app com dados reais (importação da `s-27`, valores com o
+O Pedro experimenta a app com dados reais (importação da `s-27`, valores com o
 contabilista, um mês completo, fecho e ficheiros).
 
 ## Checklist
@@ -161,7 +163,13 @@ contabilista, um mês completo, fecho e ficheiros).
 - [x] Erro encontrado no ensaio: o PyInstaller empacotava o OpenSSL do Git em vez do do
       Python (`DLL load failed while importing _ssl`). O `empacotar.cmd` força o do Python
 - [x] Erros de ligação ao arrancar ficam em `erro.log`
-- [ ] Por fazer pelo Pedro: instalar o PostgreSQL e a VPN a sério, e testar entre dois PCs
+- [x] 2026-11-19: servidor instalado a sério (PostgreSQL 18), base de dados criada pelo
+      pgAdmin, rede do escritório aberta com `scripts/servidor/abrir_rede.cmd`, endereço
+      reservado no router, cópia diária às 13:00 para o disco e para a pCloud
+      (`copia_seguranca.cmd` com `COPIA_FORA`; correu bem), segundo PC ligado e cadeado
+      confirmado pelo Pedro entre os dois
+- [ ] Repor uma cópia de segurança numa base de dados de teste (nunca experimentado)
+- [ ] VPN para fora do escritório: adiada pelo Pedro
 
 ### Depois do marco 11 (pedido do Pedro a 2026-11-18)
 - [x] Cadeado (migração `0004`, `bloqueios.py`): um funcionário fica bloqueado para os outros
