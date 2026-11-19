@@ -67,6 +67,13 @@ criadas pelo programa na primeira ligação.
 
 Por omissão, o PostgreSQL só aceita ligações do próprio PC. São três alterações no servidor.
 
+**Forma rápida:** copiar `scripts\servidor\abrir_rede.cmd` para o servidor, ajustar no topo a
+versão do PostgreSQL e a rede (por exemplo `192.168.1.0/24`) e corrê-lo com botão direito →
+*Executar como administrador*, com o programa fechado. Faz os pontos 2, 3 e 4 abaixo, guarda uma
+cópia do `pg_hba.conf` original e pode correr-se outra vez para outra rede (a da VPN).
+
+À mão (nos caminhos, trocar `17` pela versão instalada):
+
 1. **`postgresql.conf`** (em `C:\Program Files\PostgreSQL\17\data`): confirmar a linha
 
    ```
@@ -112,10 +119,13 @@ tráfego da base de dados circula na rede local.
 As cópias do servidor fazem-se no servidor, todos os dias, sem depender de ninguém.
 
 1. Copiar `scripts\servidor\copia_seguranca.cmd` para o servidor (por exemplo para
-   `C:\LSC-Servidor`) e ajustar as três linhas do topo: a pasta do PostgreSQL, a pasta de
-   destino (de preferência noutro disco) e quantos dias guardar.
+   `C:\LSC-Servidor`) e ajustar as linhas do topo: a pasta do PostgreSQL, a pasta de
+   destino (num disco do próprio servidor), quantos dias guardar e, em `COPIA_FORA`, uma
+   segunda pasta para onde cada cópia também vai (outro disco, ou uma pasta sincronizada com a
+   nuvem). A base de dados em si nunca se põe numa pasta sincronizada: só as cópias.
 2. Para o `pg_dump` não pedir a palavra-passe, criar o ficheiro
-   `%APPDATA%\postgresql\pgpass.conf` do utilizador que vai correr a tarefa, com uma linha:
+   `%APPDATA%\postgresql\pgpass.conf` do utilizador que vai correr a tarefa (o
+   `palavra_passe_das_copias.cmd` cria-o e abre-o no Bloco de Notas), com uma linha:
 
    ```
    localhost:5432:lsc_presencas:lsc_app:A_PALAVRA_PASSE_DA_APP
@@ -124,7 +134,9 @@ As cópias do servidor fazem-se no servidor, todos os dias, sem depender de ning
    Esse ficheiro só deve poder ser lido por esse utilizador.
 3. No Agendador de Tarefas do Windows, criar uma tarefa diária (por exemplo às 22:00) que
    corre o `copia_seguranca.cmd`, com a opção "Executar quer o utilizador tenha sessão
-   iniciada ou não".
+   iniciada ou não". Se `COPIA_FORA` for uma unidade que só existe com a sessão iniciada
+   (pCloud, Google Drive…), a tarefa tem de correr com a sessão iniciada, a uma hora em que o
+   PC esteja em uso.
 4. Correr a tarefa uma vez à mão e confirmar que apareceu um ficheiro `.dump` na pasta de
    destino e uma linha `OK` no `registo.txt`.
 5. Copiar essa pasta regularmente para fora do edifício (disco externo ou nuvem). Uma cópia
