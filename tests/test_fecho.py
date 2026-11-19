@@ -1,5 +1,6 @@
 """Fecho do mês, fotografia das rubricas, lançamentos com auditoria e exportação."""
 
+import json
 import re
 from datetime import date
 from decimal import Decimal
@@ -12,7 +13,7 @@ from sqlalchemy import func, select
 
 from lsc_presencas import backups, calculo, config, exportacao, fecho, mapa, presencas
 from lsc_presencas.demo import MES_DEMO, semear
-from lsc_presencas.exportar_excel import AVISO, LINHA_TITULOS, TITULO_TOTAL
+from lsc_presencas.exportar_excel import AVISO, LINHA_TITULOS, TITULO_A_PAGAR, TITULO_TOTAL
 from lsc_presencas.exportar_pdf import euros
 from lsc_presencas.modelos import (
     Auditoria,
@@ -42,6 +43,7 @@ def bd(fabrica):
             p.subsidio_alimentacao_dia = Decimal("6")
             p.ajuda_custo_franca_dia = Decimal("50")
             p.prevencao_dia = Decimal("30")
+            p.taxa_seguranca_social = Decimal("0.11")
         sessao.commit()
         yield sessao
 
@@ -56,9 +58,9 @@ def contar(sessao, classe, *filtros):
 
 
 def total_no_pdf(caminho) -> list[Decimal]:
-    """Os totais ilíquidos escritos num PDF (um por folha de trabalhador)."""
+    """O «a pagar» escrito num PDF (um por folha de trabalhador)."""
     texto = "\n".join(p.extract_text() for p in PdfReader(caminho).pages)
-    achados = re.findall(r"Total ilíquido estimado.*?(-?[\d.]+,\d\d)\s*€", texto, flags=re.S)
+    achados = re.findall(r"A pagar\s*(-?[\d.]+,\d\d)\s*€", texto)
     return [Decimal(a.replace(".", "").replace(",", ".")) for a in achados]
 
 
@@ -134,6 +136,7 @@ def test_fechar_guarda_fotografia_backup_e_auditoria(bd, empresa):
     antes = mapa.construir(bd, empresa.id, ANO, MES)
     fechado = fecho.fechar(bd, empresa.id, ANO, MES, confirmado=True, utilizador="teste")
     assert fechado.fechado and fechado.total == antes.total
+    assert fechado.total_a_pagar == antes.total_a_pagar != 0
     assert fecho.esta_fechado(bd, empresa.id, ANO, MES)
     assert len(backups.listar()) == 1
     assert backups.listar()[0].parent == config.pasta_backups()
@@ -144,6 +147,8 @@ def test_fechar_guarda_fotografia_backup_e_auditoria(bd, empresa):
     guardado = fecho.mapa_do_mes(bd, empresa.id, ANO, MES)
     assert guardado.fechado and guardado.fechado_por == "teste"
     assert guardado.trabalhadores == antes.trabalhadores
+    assert all(t.folha is not None for t in guardado.trabalhadores)
+    assert '"a_pagar"' in registo.valor_novo
     with pytest.raises(fecho.FechoRecusado, match="já está fechado"):
         fecho.fechar(bd, empresa.id, ANO, MES, confirmado=True)
 
@@ -165,6 +170,8 @@ def test_mes_fechado_nao_muda_com_alteracoes_posteriores(bd, empresa):
         x for x in fecho.mapa_do_mes(bd, empresa.id, ANO, MES).trabalhadores if x.numero == t.numero
     )
     assert depois.total == total and depois.nome != "Nome Alterado"
+    assert depois.folha.vencimento_base != Decimal("5000")
+    assert mapa.construir(bd, empresa.id, ANO, MES).trabalhadores[0].folha.vencimento_base == 5000
     assert (
         mapa.construir(bd, empresa.id, ANO, MES).total
         != fecho.mapa_do_mes(bd, empresa.id, ANO, MES).total
@@ -255,9 +262,26 @@ def test_exportacao_excel_e_pdf_batem_certo(bd, empresa, tmp_path):
     assert feito.pdfs[0].name == f"{inicio}_{primeiro.numero}_{primeiro.nome}.pdf"
     assert len(feito.pdfs) == len(m.trabalhadores)
 
-    # Excel: três folhas; a coluna do total bate com o mapa.
+    # Excel: a folha «Salários» bate com as folhas de salário do mapa.
     livro = openpyxl.load_workbook(feito.excel)
-    assert livro.sheetnames == ["Resumo", "Marcações", "Parâmetros"]
+    assert livro.sheetnames == ["Salários", "Folhas", "Resumo", "Marcações", "Parâmetros"]
+    salarios = livro["Salários"]
+    titulos = [c.value for c in salarios[LINHA_TITULOS]]
+    col_pagar = titulos.index(TITULO_A_PAGAR)
+    linhas = list(salarios.iter_rows(min_row=LINHA_TITULOS + 1, values_only=True))
+    por_trabalhador = [x for x in linhas if x[0] is not None]
+    assert [x[0] for x in por_trabalhador] == [t.numero for t in m.trabalhadores]
+    a_pagar_excel = sum(Decimal(str(x[col_pagar])) for x in por_trabalhador)
+    assert a_pagar_excel == m.total_a_pagar
+    assert Decimal(str(linhas[-1][col_pagar])) == m.total_a_pagar  # linha TOTAL
+    assert AVISO in salarios["A2"].value
+    # «Folhas»: linha a linha; o «A pagar» de cada trabalhador é o mesmo.
+    detalhe = list(livro["Folhas"].iter_rows(min_row=LINHA_TITULOS + 1, values_only=True))
+    a_pagar = {x[0]: Decimal(str(x[8])) for x in detalhe if x[3] == "A pagar"}
+    assert a_pagar == {t.numero: t.a_pagar for t in m.trabalhadores}
+    assert any(x[2] == "RC" and x[3] == "Presenças" and x[9] for x in detalhe)
+
+    # A folha «Resumo» (rubricas do pré-processamento) continua lá.
     resumo = livro["Resumo"]
     titulos = [c.value for c in resumo[LINHA_TITULOS]]
     col_total = titulos.index(TITULO_TOTAL)
@@ -273,11 +297,11 @@ def test_exportacao_excel_e_pdf_batem_certo(bd, empresa, tmp_path):
     assert parametros[mapa.ROTULOS_PARAMETROS["ajuda_custo_franca_dia"]] == 50
     assert parametros[mapa.ROTULOS_PARAMETROS["limite_isencao_subsidio_dia"]] == "(por preencher)"
 
-    # PDF: a soma dos individuais = conjunto = Excel.
+    # PDF: a soma dos «a pagar» individuais = conjunto = Excel.
     individuais = [total_no_pdf(p) for p in feito.pdfs]
     assert all(len(x) == 1 for x in individuais)
-    assert sum(x[0] for x in individuais) == soma_excel
-    assert sum(total_no_pdf(feito.conjunto)) == soma_excel
+    assert [x[0] for x in individuais] == [t.a_pagar for t in m.trabalhadores]
+    assert sum(total_no_pdf(feito.conjunto)) == a_pagar_excel
     assert len(PdfReader(feito.conjunto).pages) >= len(m.trabalhadores)
 
     texto = PdfReader(feito.pdfs[0]).pages[0].extract_text()
@@ -285,6 +309,9 @@ def test_exportacao_excel_e_pdf_batem_certo(bd, empresa, tmp_path):
     assert primeiro.nome in texto and empresa.nome in texto
     assert "Tomei conhecimento" in texto
     assert "PROVISÓRIO" not in texto
+    for esperado in ("Folha de salário", "Presenças", "Vencimento RC", "Líquido", "IRS"):
+        assert esperado in texto
+    assert "ilíquido estimado" not in texto
 
 
 def test_exportacao_de_mes_aberto_fica_marcada_como_provisoria(bd, empresa, tmp_path):
@@ -292,7 +319,9 @@ def test_exportacao_de_mes_aberto_fica_marcada_como_provisoria(bd, empresa, tmp_
     feito = exportacao.exportar(m, tmp_path)
     assert "provisório" in feito.pasta.name
     assert "PROVISÓRIO" in PdfReader(feito.pdfs[0]).pages[0].extract_text()
-    assert "PROVISÓRIO" in openpyxl.load_workbook(feito.excel)["Resumo"]["A2"].value
+    livro = openpyxl.load_workbook(feito.excel)
+    assert "PROVISÓRIO" in livro["Resumo"]["A2"].value
+    assert "PROVISÓRIO" in livro["Salários"]["A2"].value
 
 
 def test_pdf_mostra_rubricas_por_calcular(fabrica, tmp_path):
@@ -304,8 +333,38 @@ def test_pdf_mostra_rubricas_por_calcular(fabrica, tmp_path):
         feito = exportacao.exportar(m, tmp_path)
         texto = PdfReader(feito.pdfs[0]).pages[0].extract_text()
         assert "por calcular" in texto
-        folha = openpyxl.load_workbook(feito.excel)["Resumo"]
-        assert any("INCOMPLETO" in str(c.value) for c in folha[LINHA_TITULOS + 1])
+        livro = openpyxl.load_workbook(feito.excel)
+        assert any("INCOMPLETO" in str(c.value) for c in livro["Resumo"][LINHA_TITULOS + 1])
+        assert any("INCOMPLETA" in str(c.value) for c in livro["Salários"][LINHA_TITULOS + 1])
+
+
+def test_mes_fechado_numa_versao_antiga_sai_sem_folha_de_salario(bd, empresa, tmp_path):
+    fecho.fechar(bd, empresa.id, ANO, MES, confirmado=True)
+    for linha in bd.scalars(select(FechoTrabalhador)):  # fotografia como era antes da folha
+        dados = json.loads(linha.dados)
+        del dados["folha"]
+        linha.dados = json.dumps(dados, ensure_ascii=False)
+    bd.commit()
+    m = fecho.mapa_do_mes(bd, empresa.id, ANO, MES)
+    assert m.sem_folhas and m.total_a_pagar == 0
+    assert calculo.NIVEL_ERRO not in {a.nivel for a in fecho.alertas(bd, m)}
+    feito = exportacao.exportar(m, tmp_path)
+    assert openpyxl.load_workbook(feito.excel).sheetnames == ["Resumo", "Marcações", "Parâmetros"]
+    texto = PdfReader(feito.pdfs[0]).pages[0].extract_text()
+    assert "Total ilíquido estimado" in texto and "Mapa de pré-processamento salarial" in texto
+
+
+def test_alertas_do_fecho_incluem_os_da_folha_de_salario(bd, empresa):
+    lista = fecho.alertas(bd, fecho.mapa_do_mes(bd, empresa.id, ANO, MES))
+    assert any("IRS: falta escrever" in a.mensagem for a in lista)
+    for p in bd.scalars(select(ParametrosEmpresa)):
+        p.taxa_seguranca_social = None
+    bd.commit()
+    lista = fecho.alertas(bd, fecho.mapa_do_mes(bd, empresa.id, ANO, MES))
+    erros = [a for a in lista if a.nivel == calculo.NIVEL_ERRO]
+    assert erros and all("Segurança Social" in a.mensagem for a in erros)
+    with pytest.raises(fecho.FechoRecusado, match="erro"):
+        fecho.fechar(bd, empresa.id, ANO, MES, confirmado=True)
 
 
 def test_formatos_e_nomes_de_ficheiro():
@@ -421,7 +480,24 @@ def test_ecra_de_fecho_fechar_exportar_e_reabrir(app, bd, empresa, pasta_da_app)
     feito = ecra.ultima_exportacao
     assert feito.excel.is_file() and feito.conjunto.is_file()
     assert pasta_da_app in feito.pasta.parents  # nada fora da pasta de dados (de teste)
-    assert sum(total_no_pdf(feito.conjunto)) == ecra.mapa.total
+    assert sum(total_no_pdf(feito.conjunto)) == ecra.mapa.total_a_pagar
+    titulos = [
+        ecra.tabela_previa.horizontalHeaderItem(n).text()
+        for n in range(ecra.tabela_previa.columnCount())
+    ]
+    assert titulos[-6:] == [
+        "Vencimento RC",
+        "GER",
+        "Líquido",
+        "Adiantamentos e acertos",
+        "A pagar",
+        "Estado",
+    ]
+    assert euros(ecra.mapa.total_a_pagar) in ecra.titulo_previa.text()
+    ultima = ecra.tabela_previa.rowCount() - 1
+    assert ecra.tabela_previa.item(ultima, len(titulos) - 2).text() == euros(
+        ecra.mapa.total_a_pagar
+    )
 
     assert not ecra.reabrir()  # sem motivo
     assert "motivo" in ecra.mensagem.text()

@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtCore import Qt
 from sqlalchemy import select
 
-from lsc_presencas import salarios
+from lsc_presencas import fecho, salarios
 from lsc_presencas.modelos import (
     FECHO_FECHADO,
     GER_QUANTIDADE_PREVENCAO,
@@ -213,3 +213,31 @@ def test_tabelas_tem_os_campos_novos(bd):
     assert "conta_folha" in chaves(d.COLUNAS_CODIGO)
     modelo = ModeloTabela(bd, LinhaGer, d.COLUNAS_LINHA_GER)
     assert modelo.rowCount() == 2
+
+
+def test_mes_fechado_mostra_a_folha_guardada_no_fecho(bd):
+    empresa = bd.scalars(select(Empresa)).one()
+    fecho.fechar(bd, empresa.id, ANO, MES, confirmado=True, com_backup=False)
+    # Um aumento posterior não mexe na folha do mês fechado.
+    ana = bd.scalars(select(Trabalhador).where(Trabalhador.numero == 1)).one()
+    bd.add(SalarioBase(trabalhador_id=ana.id, inicio_vigencia=date(ANO, MES, 1), valor=D("5000")))
+    bd.commit()
+    ecra = ecra_em(bd)
+    assert ecra.fechado and "tal como ficou no fecho" in ecra.aviso.text()
+    linhas = celulas(ecra)
+    assert linhas["Vencimento base (mês com 21 dias de trabalho)"][2] == "920,00 €"
+    assert linhas["Banco de horas"][3] == "8,13 € / hora"
+    t = ecra.tabela
+    assert not any(
+        t.item(n, c).flags() & EDITAVEL for n in range(t.rowCount()) for c in range(t.columnCount())
+    )
+
+
+def test_exportar_a_partir_do_ecra_de_salarios(bd, pasta_da_app):
+    ecra = ecra_em(bd)
+    assert "provisório" in ecra.botao_exportar.text()
+    assert ecra.exportar()
+    feito = ecra.ultima_exportacao
+    assert pasta_da_app in feito.pasta.parents and "provisório" in feito.pasta.name
+    assert feito.excel.is_file() and len(feito.pdfs) == 2
+    assert "PROVISÓRIOS" in ecra.mensagem.text()

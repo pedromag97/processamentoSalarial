@@ -118,6 +118,11 @@ def alertas(sessao: Session, do_mes: mapa.MapaMes) -> list[AlertaFecho]:
     for t in do_mes.trabalhadores:
         for a in t.resultado.alertas:
             lista.append(AlertaFecho(t.numero, t.nome, a.nivel, a.mensagem, a.datas))
+        # Os alertas da folha de salário; os que o pré-processamento já deu não se repetem.
+        ja_ditos = t.resultado.chaves_de_alerta()
+        for a in t.folha.alertas if t.folha is not None else ():
+            if a.chave not in ja_ditos:
+                lista.append(AlertaFecho(t.numero, t.nome, a.nivel, a.mensagem, a.datas))
     lista.sort(key=lambda a: (ORDEM_NIVEL.get(a.nivel, 9), a.numero or 0))
     return lista
 
@@ -210,6 +215,7 @@ def fechar(
                         "mes": do_mes.periodo,
                         "trabalhadores": len(do_mes.trabalhadores),
                         "total": str(do_mes.total),
+                        "a_pagar": str(do_mes.total_a_pagar),
                     },
                     ensure_ascii=False,
                 ),

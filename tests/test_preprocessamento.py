@@ -46,6 +46,7 @@ def test_com_parametros_preenchidos_o_resultado_fica_completo(sessao):
         p.subsidio_alimentacao_dia = Decimal("6")
         p.ajuda_custo_franca_dia = Decimal("50")
         p.prevencao_dia = Decimal("30")
+        p.taxa_seguranca_social = Decimal("0.11")
     sessao.flush()
 
     # Nº 4: tem um adiantamento de −100 € nos dados de demonstração.

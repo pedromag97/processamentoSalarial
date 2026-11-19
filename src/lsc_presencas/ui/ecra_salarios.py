@@ -8,8 +8,8 @@ tabelas.
 
 from decimal import Decimal
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -24,10 +24,9 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy.orm import Session
 
-from .. import calculo, salarios
+from .. import calculo, config, exportacao, fecho, salarios
 from .. import folha_salario as fs
 from ..exportar_pdf import euros, numero
-from ..presencas import meses_fechados
 from . import definicoes as d
 from .formatos import ler_decimal
 from .lista import nova_lista, preencher
@@ -70,6 +69,12 @@ class EcraSalarios(QWidget):
         self.caixa_empresa.setMinimumWidth(280)
         self.seletor = SeletorMes()
         self.botao_atualizar = QPushButton("Atualizar")
+        self.botao_exportar = QPushButton("Exportar Excel e PDF")
+        self.botao_exportar.setToolTip(
+            "Gera o Excel com as folhas de todos e um PDF por trabalhador, como no «Fecho do mês»."
+        )
+        self.botao_pasta = QPushButton("Abrir a pasta")
+        self.ultima_exportacao: exportacao.Exportacao | None = None
         self.resumo = QLabel()
         barra = QHBoxLayout()
         barra.addWidget(QLabel("Empresa:"))
@@ -77,6 +82,8 @@ class EcraSalarios(QWidget):
         barra.addWidget(QLabel("Mês:"))
         barra.addWidget(self.seletor)
         barra.addWidget(self.botao_atualizar)
+        barra.addWidget(self.botao_exportar)
+        barra.addWidget(self.botao_pasta)
         barra.addStretch(1)
         barra.addWidget(self.resumo)
 
@@ -128,6 +135,8 @@ class EcraSalarios(QWidget):
         self.caixa_empresa.currentIndexChanged.connect(lambda _: self.atualizar())
         self.seletor.mudou.connect(self.atualizar)
         self.botao_atualizar.clicked.connect(self.atualizar)
+        self.botao_exportar.clicked.connect(self.exportar)
+        self.botao_pasta.clicked.connect(self.abrir_pasta)
         self.lista.itemSelectionChanged.connect(self._mostrar_selecionada)
         self.tabela.itemChanged.connect(self._celula_mudou)
         self.recarregar()
@@ -157,19 +166,27 @@ class EcraSalarios(QWidget):
 
     def atualizar(self, manter_mensagem: bool = False) -> None:
         if not manter_mensagem:
-            self.mensagem.setText("")
+            self._dizer("")
         anterior = self.selecionada.trabalhador_id if self.selecionada else None
         ano, mes = self.seletor.ano, self.seletor.mes
         if self.empresa_id is None:
             self.folhas = []
             self.fechado = False
         else:
-            self.folhas = salarios.folhas_do_mes(self.sessao, self.empresa_id, ano, mes)
-            self.fechado = (self.empresa_id, ano, mes) in meses_fechados(self.sessao)
+            self.fechado = fecho.esta_fechado(self.sessao, self.empresa_id, ano, mes)
+            if self.fechado:
+                self.folhas = self._folhas_do_fecho(ano, mes)
+            else:
+                self.folhas = salarios.folhas_do_mes(self.sessao, self.empresa_id, ano, mes)
             self.sessao.rollback()  # só leitura: não deixa uma transação aberta
+        self.botao_exportar.setEnabled(bool(self.folhas))
+        self.botao_exportar.setText(
+            "Exportar Excel e PDF" if self.fechado else "Exportar Excel e PDF (provisório)"
+        )
 
         self.aviso.setText(
-            "Este mês está fechado: a folha é só para consulta. Reabra o mês para a alterar."
+            "Este mês está fechado: mostra-se a folha tal como ficou no fecho, só para consulta. "
+            "Reabra o mês para a alterar."
             if self.fechado
             else ""
         )
@@ -210,6 +227,55 @@ class EcraSalarios(QWidget):
             texto += f" · {por_calcular} por calcular"
         self.resumo.setText(texto)
         self._mostrar_selecionada()
+
+    def _folhas_do_fecho(self, ano: int, mes: int) -> list[salarios.FolhaTrabalhador]:
+        """As folhas guardadas na fotografia do fecho (não mudam com alterações posteriores)."""
+        guardado = fecho.mapa_do_mes(self.sessao, self.empresa_id, ano, mes)
+        return [
+            salarios.FolhaTrabalhador(
+                trabalhador_id=t.trabalhador_id,
+                numero=t.numero,
+                nome=t.nome,
+                ano=ano,
+                mes=mes,
+                folha=t.folha,
+                contagens=dict(t.resultado.contagens),
+                linhas_ger=[(0, False)] * len(t.folha.linhas_ger),
+            )
+            for t in guardado.trabalhadores
+            if t.folha is not None
+        ]
+
+    # --- exportar -----------------------------------------------------------------------------
+
+    def exportar(self) -> bool:
+        """Os mesmos ficheiros do «Fecho do mês»: provisórios enquanto o mês estiver aberto."""
+        if self.empresa_id is None:
+            return False
+        try:
+            do_mes = fecho.mapa_do_mes(
+                self.sessao, self.empresa_id, self.seletor.ano, self.seletor.mes
+            )
+            self.sessao.rollback()
+            self.ultima_exportacao = feito = exportacao.exportar(do_mes)
+        except Exception as erro:  # noqa: BLE001 - mostra-se a causa em vez de fechar a app
+            self.sessao.rollback()
+            self._dizer(f"Não foi possível exportar: {mensagem_de_erro(erro)}", erro=True)
+            return False
+        provisorio = "" if do_mes.fechado else " PROVISÓRIOS (o mês ainda não está fechado)"
+        self._dizer(
+            f"Ficheiros{provisorio}: 1 Excel, {len(feito.pdfs)} PDF individuais e 1 PDF "
+            f"conjunto, em {feito.pasta}"
+        )
+        return True
+
+    def abrir_pasta(self) -> None:
+        pasta = self.ultima_exportacao.pasta if self.ultima_exportacao else config.pasta_saidas()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(pasta)))
+
+    def _dizer(self, texto: str, erro: bool = False) -> None:
+        self.mensagem.setStyleSheet("color:#B00020;" if erro else "color:#1B6E1B;")
+        self.mensagem.setText(texto)
 
     # --- a folha ------------------------------------------------------------------------------
 
@@ -337,5 +403,5 @@ class EcraSalarios(QWidget):
         QTimer.singleShot(0, lambda: self._depois_de_gravar(texto))
 
     def _depois_de_gravar(self, erro: str) -> None:
-        self.atualizar()
-        self.mensagem.setText(erro)
+        self.atualizar(manter_mensagem=True)
+        self._dizer(erro, erro=True)

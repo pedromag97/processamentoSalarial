@@ -36,6 +36,7 @@ def servidor(fabrica_pg):
             p.subsidio_alimentacao_dia = Decimal("6")
             p.ajuda_custo_franca_dia = Decimal("50")
             p.prevencao_dia = Decimal("30")
+            p.taxa_seguranca_social = Decimal("0.11")
         sessao.commit()
     return fabrica_pg
 

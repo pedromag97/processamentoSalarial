@@ -2,8 +2,10 @@
 
 ## Marco atual
 
-**Marco 11 concluído** (2026-11-18), versão 2.0.0, mais os cadeados nos funcionários. À
-espera de o Pedro instalar o servidor e a VPN a sério.
+**Marco 14 concluído** (2026-11-19): a folha de salário (do vencimento ao a pagar) está no
+ecrã «Salários», no «Fecho do mês», nos PDF e no Excel. À espera de o Pedro a comparar com a
+folha Excel de um trabalhador e aprovar. A versão com a migração `0005` (marco 13) está
+instalada no PC do Pedro desde 2026-11-19; a do marco 14 ainda não.
 
 Os sete marcos da especificação original estão feitos (versão 1.0.0). A 2026-11-18 o Pedro
 pediu contas de login e uma base de dados única do Grupo LSC, usada por várias pessoas ao
@@ -211,9 +213,22 @@ As regras foram lidas das fórmulas do Excel real (só leitura; nada copiado par
       Confirmar com o Pedro
 - [ ] A versão nova atualiza a base de dados do servidor para `0005`: atualizar todos os PCs
       no mesmo dia
-- [ ] Marco 14: PDF da folha por trabalhador, Excel com todos, fotografia do fecho
-- [ ] Até ao marco 13, o Fecho do mês continua a mostrar o cálculo antigo (divisor 30,
-      «total ilíquido estimado»). A folha nova substitui-o nessa altura
+- [x] Marco 14 (2026-11-19): a folha de salário entra no mapa do mês e na fotografia do
+      fecho (JSON, sem migração); os alertas da folha contam para o fecho (sem taxa de
+      Segurança Social não se fecha; IRS por escrever é aviso a confirmar); o «Fecho do mês»
+      mostra Vencimento RC, GER, Líquido, Adiantamentos e A pagar; o PDF de cada trabalhador
+      passou a ser a «Folha de salário» (calendário + folha, uma página); o Excel ganhou as
+      folhas «Salários» (uma linha por trabalhador) e «Folhas» (linha a linha, com a conta);
+      o ecrã «Salários» mostra a folha guardada quando o mês está fechado e tem «Exportar»
+- [ ] No PDF não aparecem as linhas sem nada no mês (zero dias de férias, baixa ou faltas;
+      ajudas com quantidade zero), para caber numa página. No Excel estão todas
+- [ ] A folha «Resumo» do Excel (rubricas do pré-processamento antigo, com o «total ilíquido
+      estimado» e o divisor 30) continua lá, a seguir às novas. Perguntar ao Pedro se a quer
+      manter; as horas extra da grelha só aparecem aí (na folha nova, o banco de horas é
+      uma linha GER escrita à mão)
+- [ ] Um mês fechado antes do marco 14 não tem folha guardada: aparece «sem folha» e os
+      ficheiros saem como antes. Para a ter, reabrir e voltar a fechar
+- [ ] A versão não foi incrementada (continua 2.0.0)
 
 Regras da folha (decididas pelo Pedro; as marcadas com * são para o contabilista confirmar):
 1. Valor por dia = vencimento base / dias de trabalho do mês (segunda a sexta, sem feriados).

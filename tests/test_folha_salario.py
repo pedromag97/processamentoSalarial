@@ -259,3 +259,28 @@ def test_cada_linha_arredonda_a_centimos():
     folha = calcular_folha(exemplo())
     for linha in (*folha.linhas_rc, *folha.linhas_ger):
         assert linha.total == linha.total.quantize(D("0.01"))
+
+
+def test_a_folha_passa_a_json_e_volta_igual():
+    import json
+
+    folha = calcular_folha(
+        DadosFolha(
+            dias_trabalho_mes=21,
+            vencimento_base=D("920"),
+            dias_trabalhados=7,
+            dias_faltas=3,
+            subsidio_alimentacao_dia=D("8.50"),
+            duodecimo_ferias=D("76.67"),
+            irs=D("12.5"),
+            taxa_seguranca_social=D("0.11"),
+            linhas_ger=(
+                LinhaGer("Ajuda", "dia", D("200"), fs.MENSAL, D("7")),
+                LinhaGer("Sem valor", "hora", None, fs.UNITARIO, D("2")),
+            ),
+            movimentos=(Movimento("Adiantamento: 07/nov", D("-65")),),
+        )
+    )
+    lida = fs.de_dict(json.loads(json.dumps(fs.para_dict(folha), ensure_ascii=False)))
+    assert lida == folha
+    assert (lida.a_pagar, lida.incompleta) == (folha.a_pagar, True)

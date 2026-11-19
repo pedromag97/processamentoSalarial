@@ -405,3 +405,61 @@ def _linha_ger(linha: LinhaGer, dias_mes: Decimal, alertas: list[Alerta]) -> Lin
         f"{origem} × {_pt(linha.quantidade)} {linha.unidade}(s)",
         linha.unidade,
     )
+
+
+# --- JSON (fotografia do fecho) ---------------------------------------------------------------
+
+
+def _dec(valor: Decimal | None) -> str | None:
+    return None if valor is None else str(valor)
+
+
+def _ler(texto: str | None) -> Decimal | None:
+    return None if texto is None else Decimal(texto)
+
+
+_CAMPOS_VALOR = ("valor_mes", "valor_unitario", "quantidade", "total")
+
+
+def _linha_para_dict(linha: Linha) -> dict:
+    d = {"chave": linha.chave, "descricao": linha.descricao, "formula": linha.formula}
+    d.update({campo: _dec(getattr(linha, campo)) for campo in _CAMPOS_VALOR})
+    d["unidade"] = linha.unidade
+    return d
+
+
+def _linha_de_dict(d: dict) -> Linha:
+    return Linha(
+        chave=d["chave"],
+        descricao=d["descricao"],
+        formula=d["formula"],
+        unidade=d["unidade"],
+        **{campo: _ler(d[campo]) for campo in _CAMPOS_VALOR},
+    )
+
+
+def para_dict(folha: Folha) -> dict:
+    """A folha tal como foi calculada, para guardar no fecho do mês."""
+    return {
+        "dias_trabalho_mes": folha.dias_trabalho_mes,
+        "vencimento_base": _dec(folha.vencimento_base),
+        "linhas_rc": [_linha_para_dict(x) for x in folha.linhas_rc],
+        "linhas_ger": [_linha_para_dict(x) for x in folha.linhas_ger],
+        "movimentos": [{"descricao": m.descricao, "valor": str(m.valor)} for m in folha.movimentos],
+        "base_seguranca_social": _dec(folha.base_seguranca_social),
+        "alertas": [
+            {"chave": a.chave, "nivel": a.nivel, "mensagem": a.mensagem} for a in folha.alertas
+        ],
+    }
+
+
+def de_dict(d: dict) -> Folha:
+    return Folha(
+        dias_trabalho_mes=d["dias_trabalho_mes"],
+        vencimento_base=_ler(d["vencimento_base"]),
+        linhas_rc=[_linha_de_dict(x) for x in d["linhas_rc"]],
+        linhas_ger=[_linha_de_dict(x) for x in d["linhas_ger"]],
+        movimentos=[Movimento(m["descricao"], Decimal(m["valor"])) for m in d["movimentos"]],
+        base_seguranca_social=_ler(d["base_seguranca_social"]),
+        alertas=[Alerta(a["chave"], a["nivel"], a["mensagem"]) for a in d["alertas"]],
+    )

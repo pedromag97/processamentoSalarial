@@ -14,7 +14,8 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import calculo
+from . import calculo, salarios
+from . import folha_salario as fs
 from .consultas import parametros_em_vigor
 from .modelos import (
     PAIS_PORTUGAL,
@@ -60,7 +61,9 @@ ROTULOS_PARAMETROS = {
     "limite_isencao_subsidio_dia": "Limite de isenção do subsídio de alimentação por dia (€)",
     "limite_isencao_ajuda_custo_dia": "Limite de isenção da ajuda de custo por dia (€)",
     "limite_horas_extra_mes": "Alerta de horas extra por mês (horas)",
+    "taxa_seguranca_social": "Taxa de Segurança Social do trabalhador",
 }
+CAMPOS_DO_MAPA = (*CAMPOS_PARAMETROS, "taxa_seguranca_social")
 
 
 def nome_do_mes(ano: int, mes: int) -> str:
@@ -87,6 +90,12 @@ class MapaTrabalhador:
     zona: str | None  # zona principal do mês
     resultado: calculo.Resultado
     dias: list[DiaMapa] = field(default_factory=list)
+    # Folha de salário (do vencimento ao a pagar). None só em meses fechados numa versão antiga.
+    folha: fs.Folha | None = None
+
+    @property
+    def a_pagar(self) -> Decimal | None:
+        return None if self.folha is None else self.folha.a_pagar
 
     @property
     def total(self) -> Decimal:
@@ -134,6 +143,16 @@ class MapaMes:
         return sum((t.total for t in self.trabalhadores), calculo.ZERO)
 
     @property
+    def total_a_pagar(self) -> Decimal:
+        """Soma do «a pagar» das folhas de salário (as que existirem)."""
+        return sum((t.a_pagar for t in self.trabalhadores if t.folha is not None), calculo.ZERO)
+
+    @property
+    def sem_folhas(self) -> bool:
+        """True num mês fechado antes de existir a folha de salário."""
+        return bool(self.trabalhadores) and all(t.folha is None for t in self.trabalhadores)
+
+    @property
     def periodo(self) -> str:
         return f"{self.ano}-{self.mes:02d}"
 
@@ -179,7 +198,7 @@ def construir(sessao: Session, empresa_id: int, ano: int, mes: int) -> MapaMes:
             )
         ],
         parametros=(
-            None if parametros is None else {c: getattr(parametros, c) for c in CAMPOS_PARAMETROS}
+            None if parametros is None else {c: getattr(parametros, c) for c in CAMPOS_DO_MAPA}
         ),
         feriados=[
             (d, n)
@@ -226,6 +245,7 @@ def construir(sessao: Session, empresa_id: int, ano: int, mes: int) -> MapaMes:
                 zona=_principal(d.zona for d in dias) or (t.zona.nome if t.zona else None),
                 resultado=resultado,
                 dias=dias,
+                folha=salarios.folha_do_trabalhador(sessao, t, ano, mes).folha,
             )
         )
     return mapa
@@ -312,6 +332,7 @@ def trabalhador_para_json(t: MapaTrabalhador) -> str:
             "cliente": t.cliente,
             "zona": t.zona,
             "resultado": resultado_para_dict(t.resultado),
+            "folha": None if t.folha is None else fs.para_dict(t.folha),
             "dias": [
                 {
                     "data": d.data.isoformat(),
@@ -350,6 +371,7 @@ def trabalhador_de_json(trabalhador_id: int, numero: int, nome: str, texto: str)
             )
             for x in d["dias"]
         ],
+        folha=fs.de_dict(d["folha"]) if d.get("folha") else None,
     )
 
 

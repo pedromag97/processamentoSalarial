@@ -1,4 +1,5 @@
-"""Excel-resumo mensal por empresa: resumo por trabalhador, marcações diárias e parâmetros."""
+"""Excel mensal por empresa: salários (uma linha por trabalhador), folhas de salário linha a
+linha, resumo das rubricas do pré-processamento, marcações diárias e parâmetros."""
 
 from decimal import Decimal
 from pathlib import Path
@@ -8,10 +9,12 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from . import calculo
+from . import folha_salario as fs
 from .mapa import ROTULOS_PARAMETROS, MapaMes, MapaTrabalhador
 
-AVISO = "Mapa de pré-processamento — não substitui o recibo de vencimento"
+AVISO = "Documento interno de apuramento — não substitui o recibo de vencimento"
 TITULO_TOTAL = "Total ilíquido estimado (€)"
+TITULO_A_PAGAR = "A pagar (€)"
 DIAS_SEMANA = ["2.ª", "3.ª", "4.ª", "5.ª", "6.ª", "sáb", "dom"]
 
 FORMATO_EUROS = "#,##0.00"
@@ -213,9 +216,170 @@ def _folha_parametros(folha, mapa: MapaMes) -> None:
     folha.column_dimensions["B"].width = 40
 
 
+def _da_folha(t: MapaTrabalhador, chave: str, campo: str = "total"):
+    linha = None if t.folha is None else t.folha.linha(chave)
+    return None if linha is None else getattr(linha, campo)
+
+
+def _total_da_folha(nome: str):
+    return lambda t: None if t.folha is None else getattr(t.folha, nome)
+
+
+def observacoes_da_folha(t: MapaTrabalhador) -> str | None:
+    if t.folha is None:
+        return "Sem folha de salário: mês fechado numa versão anterior do programa"
+    notas = ["INCOMPLETA: há linhas por calcular (valores em falta)"] if t.folha.incompleta else []
+    notas += [a.mensagem for a in t.folha.alertas]
+    return "; ".join(notas) or None
+
+
+def colunas_dos_salarios() -> list[tuple[str, str, object]]:
+    """Folha «Salários»: uma linha por trabalhador, do vencimento ao a pagar."""
+    e, h = FORMATO_EUROS, FORMATO_HORAS
+    colunas: list[tuple[str, str, object]] = [
+        ("Nº", "", lambda t: t.numero),
+        ("Nome", "", lambda t: t.nome),
+        ("Vencimento base (€)", e, lambda t: None if t.folha is None else t.folha.vencimento_base),
+        ("Dias trabalhados", h, lambda t: _da_folha(t, fs.PRESENCAS, "quantidade")),
+        ("Dias de férias", h, lambda t: _da_folha(t, fs.FERIAS, "quantidade")),
+        ("Dias de baixa", h, lambda t: _da_folha(t, fs.BAIXA, "quantidade")),
+        ("Dias de faltas", h, lambda t: _da_folha(t, fs.FALTAS, "quantidade")),
+    ]
+    for titulo, chave in (
+        ("Presenças (€)", fs.PRESENCAS),
+        ("Subsídio de alimentação (€)", fs.SUBSIDIO_ALIMENTACAO),
+        ("Subsídio de férias (€)", fs.SUBSIDIO_FERIAS),
+        ("Subsídio de Natal (€)", fs.SUBSIDIO_NATAL),
+        ("Férias (€)", fs.FERIAS),
+        ("Baixa (€)", fs.BAIXA),
+        ("Faltas (€)", fs.FALTAS),
+        ("IRS (€)", fs.IRS),
+        ("Segurança Social (€)", fs.SEGURANCA_SOCIAL),
+    ):
+        colunas.append((titulo, e, lambda t, k=chave: _da_folha(t, k)))
+    colunas += [
+        ("Vencimento RC (€)", e, _total_da_folha("vencimento_rc")),
+        ("Total GER (€)", e, _total_da_folha("total_ger")),
+        ("Líquido (€)", e, _total_da_folha("liquido")),
+        ("Adiantamentos e acertos (€)", e, _total_da_folha("total_movimentos")),
+        (TITULO_A_PAGAR, e, _total_da_folha("a_pagar")),
+        ("Observações", "", observacoes_da_folha),
+    ]
+    return colunas
+
+
+def _folha_salarios(folha, mapa: MapaMes) -> None:
+    folha.title = "Salários"
+    folha["A1"] = f"{mapa.empresa} — folhas de salário — {mapa.titulo_mes}"
+    folha["A1"].font = Font(bold=True, size=13)
+    folha["A2"] = f"{AVISO}. {estado_do_mapa(mapa)}."
+    colunas = colunas_dos_salarios()
+    _titulos(folha, [titulo for titulo, _, _ in colunas])
+    totais: dict[int, Decimal] = {}
+    linha = LINHA_TITULOS
+    for t in mapa.trabalhadores:
+        linha += 1
+        for n, (_, formato, obter) in enumerate(colunas, start=1):
+            valor = obter(t)
+            if valor is None:
+                continue
+            celula = folha.cell(linha, n, valor)
+            if formato:
+                celula.number_format = formato
+            if n > 3 and isinstance(valor, int | Decimal):
+                totais[n] = totais.get(n, Decimal(0)) + Decimal(valor)
+    linha += 1
+    folha.cell(linha, 2, "TOTAL").font = NEGRITO
+    for n, total in totais.items():
+        celula = folha.cell(linha, n, total)
+        celula.font = NEGRITO
+        celula.number_format = colunas[n - 1][1]
+    folha.freeze_panes = folha.cell(LINHA_TITULOS + 1, 3)
+    for n, (titulo, _, _) in enumerate(colunas, start=1):
+        largura = {"Nome": 30, "Observações": 60, "Nº": 6}.get(titulo, 13)
+        folha.column_dimensions[get_column_letter(n)].width = largura
+
+
+def _folha_detalhe(folha, mapa: MapaMes) -> None:
+    """Folha «Folhas»: todas as linhas de todas as folhas de salário, com a conta de cada uma."""
+    folha["A1"] = f"{mapa.empresa} — folhas de salário, linha a linha — {mapa.titulo_mes}"
+    folha["A1"].font = Font(bold=True, size=13)
+    folha["A2"] = f"{AVISO}. {estado_do_mapa(mapa)}."
+    _titulos(
+        folha,
+        [
+            "Nº",
+            "Nome",
+            "Bloco",
+            "Descrição",
+            "Valor do mês (€)",
+            "Valor unitário (€)",
+            "Unidade",
+            "Quantidade",
+            "Total (€)",
+            "Como se calcula",
+        ],
+    )
+    n = LINHA_TITULOS
+
+    def escrever(t: MapaTrabalhador, valores: list, negrito: bool = False) -> None:
+        nonlocal n
+        n += 1
+        for coluna, valor in enumerate([t.numero, t.nome, *valores], start=1):
+            if valor is None:
+                continue
+            celula = folha.cell(n, coluna, valor)
+            if negrito:
+                celula.font = NEGRITO
+            if coluna in (5, 6, 9):
+                celula.number_format = FORMATO_EUROS if coluna != 6 else "#,##0.0000"
+            elif coluna == 8:
+                celula.number_format = FORMATO_HORAS
+
+    def total(t: MapaTrabalhador, titulo: str, valor: Decimal) -> None:
+        escrever(t, ["", titulo, None, None, None, None, valor, None], negrito=True)
+
+    for t in mapa.trabalhadores:
+        f = t.folha
+        if f is None:
+            continue
+        base = f"Vencimento base (mês com {f.dias_trabalho_mes} dias de trabalho)"
+        escrever(t, ["RC", base, f.vencimento_base, None, None, None, None, None])
+        for bloco, linhas in (("RC", f.linhas_rc), ("GER", f.linhas_ger)):
+            for x in linhas:
+                escrever(
+                    t,
+                    [
+                        bloco,
+                        x.descricao,
+                        x.valor_mes,
+                        x.valor_unitario,
+                        x.unidade if x.valor_unitario is not None else None,
+                        x.quantidade,
+                        x.total if x.total is not None else "por calcular",
+                        x.formula,
+                    ],
+                )
+            if bloco == "RC":
+                total(t, "Vencimento RC", f.vencimento_rc)
+            elif linhas:
+                total(t, "Total GER", f.total_ger)
+        total(t, "Líquido", f.liquido)
+        for m in f.movimentos:
+            escrever(t, ["", m.descricao, None, None, None, None, m.valor, None])
+        total(t, TITULO_A_PAGAR.replace(" (€)", ""), f.a_pagar)
+    folha.freeze_panes = folha.cell(LINHA_TITULOS + 1, 3)
+    for coluna, largura in enumerate([6, 30, 7, 44, 14, 14, 9, 11, 14, 70], start=1):
+        folha.column_dimensions[get_column_letter(coluna)].width = largura
+
+
 def gerar_excel(mapa: MapaMes, destino: Path) -> Path:
     livro = Workbook()
-    _folha_resumo(livro.active, mapa)
+    if not mapa.sem_folhas:
+        _folha_salarios(livro.active, mapa)
+        _folha_detalhe(livro.create_sheet("Folhas"), mapa)
+        livro.create_sheet("Resumo")
+    _folha_resumo(livro["Resumo"] if "Resumo" in livro.sheetnames else livro.active, mapa)
     _folha_marcacoes(livro.create_sheet("Marcações"), mapa)
     _folha_parametros(livro.create_sheet("Parâmetros"), mapa)
     destino.parent.mkdir(parents=True, exist_ok=True)

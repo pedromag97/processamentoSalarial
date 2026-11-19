@@ -37,13 +37,17 @@ DIREITA = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
 
 def colunas_da_previa(mapa: MapaMes) -> list[tuple[str, object]]:
     """(título, função que dá o texto de um trabalhador). Os valores em euros vão formatados."""
-    c = calculo
     usados = [
         k for k, _ in mapa.codigos if any(t.resultado.contagens.get(k) for t in mapa.trabalhadores)
     ]
 
-    def total_de(chave):
-        return lambda t: euros(t.resultado.total_de(chave)) if t.resultado.rubrica(chave) else ""
+    def da_folha(nome):
+        return lambda t: "" if t.folha is None else euros(getattr(t.folha, nome))
+
+    def estado(t) -> str:
+        if t.folha is None:
+            return "sem folha"
+        return "incompleto" if t.folha.incompleta else ""
 
     colunas: list[tuple[str, object]] = [
         ("Nº", lambda t: str(t.numero)),
@@ -53,22 +57,13 @@ def colunas_da_previa(mapa: MapaMes) -> list[tuple[str, object]]:
     ]
     colunas += [(k, lambda t, k=k: str(t.resultado.contagens.get(k) or "")) for k in usados]
     colunas += [
-        ("Base processada", lambda t: euros(t.base_processada)),
-        ("Subsídio alim.", total_de(c.SUBSIDIO_ALIMENTACAO)),
-        ("Ajuda de custo", total_de(c.AJUDA_CUSTO_FRANCA)),
-        ("Prevenção", total_de(c.PREVENCAO)),
         ("Horas extra (h)", lambda t: numero(t.resultado.horas_extra or None)),
-        ("Horas extra (€)", lambda t: euros(t.valor_horas_extra() or None)),
-        (
-            "Lançamentos",
-            lambda t: (
-                euros(t.resultado.total_de(c.LANCAMENTO))
-                if t.resultado.rubrica(c.LANCAMENTO)
-                else ""
-            ),
-        ),
-        ("Total ilíquido estimado", lambda t: euros(t.total)),
-        ("Estado", lambda t: "incompleto" if t.resultado.incompleto else ""),
+        ("Vencimento RC", da_folha("vencimento_rc")),
+        ("GER", da_folha("total_ger")),
+        ("Líquido", da_folha("liquido")),
+        ("Adiantamentos e acertos", da_folha("total_movimentos")),
+        ("A pagar", da_folha("a_pagar")),
+        ("Estado", estado),
     ]
     return colunas
 
@@ -279,10 +274,14 @@ class EcraFecho(QWidget):
             tabela.setColumnCount(0)
             self.titulo_previa.setText("")
             return
-        self.titulo_previa.setText(
-            f"Totais por trabalhador ({len(mapa.trabalhadores)}) — total ilíquido estimado, "
-            f"antes de IRS e TSU: {euros(mapa.total)}"
-        )
+        titulo = f"Folhas de salário ({len(mapa.trabalhadores)}) — a pagar: "
+        titulo += euros(mapa.total_a_pagar)
+        if mapa.sem_folhas:
+            titulo = (
+                "Este mês foi fechado antes de existir a folha de salário. Para a ter, reabra o "
+                "mês e volte a fechá-lo."
+            )
+        self.titulo_previa.setText(titulo)
         colunas = colunas_da_previa(mapa)
         tabela.setColumnCount(len(colunas))
         tabela.setHorizontalHeaderLabels([titulo for titulo, _ in colunas])
@@ -292,11 +291,11 @@ class EcraFecho(QWidget):
                 item = QTableWidgetItem(obter(t))
                 if coluna >= 3:
                     item.setTextAlignment(DIREITA)
-                if t.resultado.incompleto:
+                if t.folha is not None and t.folha.incompleta:
                     item.setBackground(COR_NIVEL[calculo.NIVEL_ERRO])
                 tabela.setItem(linha, coluna, item)
         ultima = len(mapa.trabalhadores)
-        for coluna, texto in ((1, "TOTAL"), (len(colunas) - 2, euros(mapa.total))):
+        for coluna, texto in ((1, "TOTAL"), (len(colunas) - 2, euros(mapa.total_a_pagar))):
             item = QTableWidgetItem(texto)
             fonte = item.font()
             fonte.setBold(True)
