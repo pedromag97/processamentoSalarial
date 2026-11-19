@@ -39,6 +39,7 @@ from .ecra_lancamentos import EcraLancamentos
 from .ecra_ligacao import MENSAGEM_REABRIR, DialogoLigacao
 from .ecra_presencas import EcraPresencas
 from .ecra_relatorios import EcraRelatorios
+from .ecra_salarios import EcraSalarios
 from .ecra_tabelas import EcraTabelas
 from .ecra_trabalhadores import EcraTrabalhadores
 from .tabela import mensagem_de_erro
@@ -149,6 +150,7 @@ class JanelaPrincipal(QMainWindow):
         self.ecras: dict[str, QWidget] = {
             "Presenças": EcraPresencas(self.sessao),
             "Lançamentos": EcraLancamentos(self.sessao),
+            "Salários": EcraSalarios(self.sessao),
             "Fecho do mês": EcraFecho(self.sessao),
             "Relatórios": EcraRelatorios(self.sessao),
             "Trabalhadores": EcraTrabalhadores(self.sessao),

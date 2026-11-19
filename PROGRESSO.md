@@ -199,8 +199,18 @@ As regras foram lidas das fórmulas do Excel real (só leitura; nada copiado par
 - [x] `folha_salario.py` (puro) e `tests/test_folha_salario.py`: dias de trabalho do mês,
       Presenças, subsídio de alimentação, subsídios de férias e de Natal em duodécimos,
       férias, baixa, faltas, IRS, Segurança Social, linhas GER, líquido e a pagar
-- [ ] Marco 13: modelo e migração (duodécimos e linhas GER na ficha, IRS e quantidades do
-      mês, taxa de Segurança Social nos parâmetros) e ecrã «Salários»
+- [x] Marco 13 (2026-11-19): migração `0005` (duodécimos no salário base, tabelas
+      `linha_ger`, `quantidade_ger` e `folha_mes`, taxa de Segurança Social nos parâmetros,
+      «Conta na folha» nos códigos de presença), `salarios.py` (lê a base de dados, grava o
+      IRS e as quantidades com auditoria, mês fechado e cadeado), separador «Ajudas (GER)» na
+      ficha e ecrã «Salários» (lista com totais + folha; IRS e quantidades a amarelo)
+- [ ] Por ver pelo Pedro no ecrã: aspeto da folha, e os códigos FJ e DF, que por omissão
+      não contam na folha (nem pagam nem descontam)
+- [ ] O subsídio de alimentação da folha paga-se por dia trabalhado (como no Excel), sem
+      olhar ao atributo «Subsídio de alimentação» do código: PF e PR também o recebem.
+      Confirmar com o Pedro
+- [ ] A versão nova atualiza a base de dados do servidor para `0005`: atualizar todos os PCs
+      no mesmo dia
 - [ ] Marco 14: PDF da folha por trabalhador, Excel com todos, fotografia do fecho
 - [ ] Até ao marco 13, o Fecho do mês continua a mostrar o cálculo antigo (divisor 30,
       «total ilíquido estimado»). A folha nova substitui-o nessa altura

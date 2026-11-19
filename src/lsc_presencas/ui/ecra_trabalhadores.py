@@ -14,12 +14,19 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .. import auditoria, bloqueios, contas
-from ..modelos import SalarioBase, Trabalhador
+from ..modelos import (
+    GER_QUANTIDADE_MANUAL,
+    GER_UNITARIO,
+    LinhaGer,
+    QuantidadeGer,
+    SalarioBase,
+    Trabalhador,
+)
 from . import definicoes as d
 from .ecra_auditoria import ListaAuditoria
 from .formatos import sem_acentos
@@ -106,6 +113,30 @@ class FichaTrabalhador(QDialog):
         self.modelo_salarios.alterado.connect(self._atualizar_aviso_salario)
         self._atualizar_aviso_salario()
 
+        self.modelo_ger = ModeloTabela(
+            sessao,
+            LinhaGer,
+            d.COLUNAS_LINHA_GER,
+            consulta=lambda: (
+                select(LinhaGer)
+                .where(LinhaGer.trabalhador_id == trabalhador.id)
+                .order_by(LinhaGer.ordem, LinhaGer.id)
+            ),
+            ao_criar=self._preparar_linha_ger,
+            ao_gravar=self._auditar_linha_ger,
+        )
+        self.linhas_ger = VistaTabela(self.modelo_ger, nome_registo="ajuda")
+        pagina_ger = QWidget()
+        disposicao_ger = QVBoxLayout(pagina_ger)
+        ajuda_ger = QLabel(
+            "Ajudas combinadas com este trabalhador (bloco GER da folha de salário). As "
+            "quantidades de cada mês escrevem-se no ecrã «Salários». As alterações nesta "
+            "tabela são gravadas de imediato."
+        )
+        ajuda_ger.setWordWrap(True)
+        disposicao_ger.addWidget(ajuda_ger)
+        disposicao_ger.addWidget(self.linhas_ger, 1)
+
         self.erro = QLabel()
         self.erro.setStyleSheet("color:#B00020;")
         self.erro.setWordWrap(True)
@@ -135,6 +166,7 @@ class FichaTrabalhador(QDialog):
             self.dados.setEnabled(False)
             self.excecoes.setEnabled(False)
             self.salarios.bloquear(True)
+            self.linhas_ger.bloquear(True)
             botoes.button(QDialogButtonBox.StandardButton.Cancel).setText("Fechar")
 
         cima = QHBoxLayout()
@@ -148,6 +180,7 @@ class FichaTrabalhador(QDialog):
         self.historico = ListaAuditoria(sessao, numero_trabalhador=trabalhador.numero)
         self.separadores = QTabWidget()
         self.separadores.addTab(pagina_ficha, "Ficha")
+        self.separadores.addTab(pagina_ger, "Ajudas (GER)")
         self.separadores.addTab(self.historico, "Histórico de alterações")
         self.separadores.currentChanged.connect(lambda _: self.historico.recarregar())
 
@@ -161,26 +194,78 @@ class FichaTrabalhador(QDialog):
         self.aviso_salario.setVisible(not gravados)
 
     def _auditar_salario(self, sessao: Session, salario: SalarioBase, acao: str) -> None:
-        def descrever(inicio, valor) -> dict:
+        def descrever(inicio, valor, ferias, natal) -> dict:
             return {
                 "trabalhador": self.trabalhador.numero,
                 "em_vigor_desde": inicio,
                 "valor": valor,
+                "duodecimo_ferias": ferias,
+                "duodecimo_natal": natal,
             }
 
         with sessao.no_autoflush:
             antigo = None
             if acao != "criar":
                 linha = sessao.execute(
-                    select(SalarioBase.inicio_vigencia, SalarioBase.valor).where(
-                        SalarioBase.id == salario.id
-                    )
+                    select(
+                        SalarioBase.inicio_vigencia,
+                        SalarioBase.valor,
+                        SalarioBase.duodecimo_ferias,
+                        SalarioBase.duodecimo_natal,
+                    ).where(SalarioBase.id == salario.id)
                 ).first()
                 antigo = descrever(*linha) if linha else None
-            novo = None if acao == "apagar" else descrever(salario.inicio_vigencia, salario.valor)
+            novo = (
+                None
+                if acao == "apagar"
+                else descrever(
+                    salario.inicio_vigencia,
+                    salario.valor,
+                    salario.duodecimo_ferias,
+                    salario.duodecimo_natal,
+                )
+            )
             if acao == "alterar" and antigo == novo:
                 return
             auditoria.registar(sessao, "salario_base", salario.id, acao, antigo, novo)
+
+    def _preparar_linha_ger(self, linha: LinhaGer, _sessao: Session) -> None:
+        linha.trabalhador_id = self.trabalhador.id
+        linha.ordem = len(self.modelo_ger.linhas) + 1
+        linha.unidade = "dia"
+        linha.base = GER_UNITARIO
+        linha.quantidade_de = GER_QUANTIDADE_MANUAL
+        linha.ativo = True
+
+    CAMPOS_GER = ("ordem", "nome", "unidade", "valor", "base", "quantidade_de", "ativo")
+
+    def _auditar_linha_ger(self, sessao: Session, linha: LinhaGer, acao: str) -> None:
+        def descrever(valores) -> dict:
+            return {
+                "trabalhador": self.trabalhador.numero,
+                **dict(zip(self.CAMPOS_GER, valores, strict=True)),
+            }
+
+        with sessao.no_autoflush:
+            antigo = None
+            if acao != "criar":
+                gravado = sessao.execute(
+                    select(*(getattr(LinhaGer, c) for c in self.CAMPOS_GER)).where(
+                        LinhaGer.id == linha.id
+                    )
+                ).first()
+                antigo = descrever(gravado) if gravado else None
+            if acao == "apagar":
+                # As quantidades já escritas para esta linha vão com ela.
+                sessao.execute(delete(QuantidadeGer).where(QuantidadeGer.linha_ger_id == linha.id))
+            novo = (
+                None
+                if acao == "apagar"
+                else descrever([getattr(linha, c) for c in self.CAMPOS_GER])
+            )
+            if acao == "alterar" and antigo == novo:
+                return
+            auditoria.registar(sessao, "linha_ger", linha.id, acao, antigo, novo)
 
     def done(self, resultado: int) -> None:
         """Ao fechar a ficha (guardar, cancelar ou fechar a janela), larga o cadeado."""

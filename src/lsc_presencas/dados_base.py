@@ -44,6 +44,18 @@ CODIGOS_BASE = [
     ("PR", "Prevenção", "#FFD966", True, True, AJUDA_CUSTO_ZONA, False, True),
 ]
 
+# Como cada código base conta na folha de salário (os que não estão aqui não contam).
+# FJ (falta justificada) e DF ficam de fora por omissão: muda-se na tabela de códigos.
+FOLHA_POR_CODIGO = {
+    "P": "trabalho",
+    "PF": "trabalho",
+    "PR": "trabalho",
+    "FE": "ferias",
+    "FI": "falta",
+    "B": "baixa",
+    "AT": "baixa",
+}
+
 ANOS_FERIADOS = (2026, 2027)
 
 
@@ -101,6 +113,7 @@ def carregar_dados_base(sessao: Session, anos=ANOS_FERIADOS) -> None:
                     ajuda_custo_franca=ajuda,
                     desconta_salario=desconta,
                     soma_prevencao=prev,
+                    conta_folha=FOLHA_POR_CODIGO.get(codigo, ""),
                 )
             )
 

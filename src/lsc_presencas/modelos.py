@@ -151,8 +151,69 @@ class SalarioBase(Base):
     trabalhador_id: Mapped[int] = mapped_column(ForeignKey("trabalhador.id"))
     inicio_vigencia: Mapped[date] = mapped_column(Date)
     valor: Mapped[Decimal] = mapped_column(Valor)
+    # Subsídios de férias e de Natal pagos em duodécimos: valor do mês. Vazio = não recebe assim.
+    duodecimo_ferias: Mapped[Decimal | None] = mapped_column(Valor)
+    duodecimo_natal: Mapped[Decimal | None] = mapped_column(Valor)
 
     trabalhador: Mapped[Trabalhador] = relationship(back_populates="salarios")
+
+
+# Como se chega ao valor unitário de uma linha GER (ver folha_salario.py).
+GER_UNITARIO = "unitario"
+GER_MENSAL = "mensal"
+GER_SEMANAL = "semanal"
+
+# De onde vem a quantidade do mês de uma linha GER.
+GER_QUANTIDADE_MANUAL = "manual"  # escreve-se no ecrã «Salários»
+GER_QUANTIDADE_PREVENCAO = "prevencao"  # dias marcados na grelha com um código de prevenção
+
+
+class LinhaGer(Base):
+    """Ajuda combinada com um trabalhador (bloco GER da folha de salário)."""
+
+    __tablename__ = "linha_ger"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trabalhador_id: Mapped[int] = mapped_column(ForeignKey("trabalhador.id"), index=True)
+    ordem: Mapped[int] = mapped_column(Integer, default=0)
+    nome: Mapped[str] = mapped_column(String(80))
+    unidade: Mapped[str] = mapped_column(String(12), default="dia")
+    valor: Mapped[Decimal | None] = mapped_column(Valor)
+    base: Mapped[str] = mapped_column(String(10), default=GER_UNITARIO)
+    quantidade_de: Mapped[str] = mapped_column(String(10), default=GER_QUANTIDADE_MANUAL)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    trabalhador: Mapped[Trabalhador] = relationship()
+
+
+class QuantidadeGer(Base):
+    """Quantidade de uma linha GER num mês (dias, noites ou horas escritos à mão)."""
+
+    __tablename__ = "quantidade_ger"
+    __table_args__ = (UniqueConstraint("linha_ger_id", "ano", "mes"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    linha_ger_id: Mapped[int] = mapped_column(ForeignKey("linha_ger.id"))
+    ano: Mapped[int] = mapped_column(Integer)
+    mes: Mapped[int] = mapped_column(Integer)
+    quantidade: Mapped[Decimal] = mapped_column(Valor)
+
+    linha: Mapped[LinhaGer] = relationship()
+
+
+class FolhaMes(Base):
+    """Valores da folha de salário escritos à mão num mês: por agora, o IRS."""
+
+    __tablename__ = "folha_mes"
+    __table_args__ = (UniqueConstraint("trabalhador_id", "ano", "mes"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trabalhador_id: Mapped[int] = mapped_column(ForeignKey("trabalhador.id"))
+    ano: Mapped[int] = mapped_column(Integer)
+    mes: Mapped[int] = mapped_column(Integer)
+    irs: Mapped[Decimal | None] = mapped_column(Valor)
+
+    trabalhador: Mapped[Trabalhador] = relationship()
 
 
 # --- Presenças --------------------------------------------------------------------------------
@@ -160,6 +221,13 @@ class SalarioBase(Base):
 AJUDA_CUSTO_NAO = "nao"
 AJUDA_CUSTO_SIM = "sim"
 AJUDA_CUSTO_ZONA = "zona"  # só quando a zona da marcação é em França
+
+# Como um código conta na folha de salário (vazio = o dia não é pago nem descontado).
+FOLHA_TRABALHO = "trabalho"
+FOLHA_FERIAS = "ferias"
+FOLHA_BAIXA = "baixa"
+FOLHA_FALTA = "falta"
+FOLHA_NADA = ""
 
 
 class CodigoPresenca(Base):
@@ -179,6 +247,7 @@ class CodigoPresenca(Base):
     ajuda_custo_franca: Mapped[str] = mapped_column(String(4), default=AJUDA_CUSTO_NAO)
     desconta_salario: Mapped[bool] = mapped_column(Boolean, default=False)
     soma_prevencao: Mapped[bool] = mapped_column(Boolean, default=False)
+    conta_folha: Mapped[str] = mapped_column(String(10), default=FOLHA_NADA, server_default="")
 
     def __repr__(self) -> str:
         return f"<CodigoPresenca {self.codigo}>"
@@ -267,6 +336,8 @@ class ParametrosEmpresa(Base):
     limite_isencao_subsidio_dia: Mapped[Decimal | None] = mapped_column(Valor)
     limite_isencao_ajuda_custo_dia: Mapped[Decimal | None] = mapped_column(Valor)
     limite_horas_extra_mes: Mapped[Decimal | None] = mapped_column(Valor)
+    # Em fração (0,11 = 11%). Vazio até ser preenchida: a folha de salário fica por calcular.
+    taxa_seguranca_social: Mapped[Decimal | None] = mapped_column(Valor)
 
     empresa: Mapped[Empresa] = relationship(back_populates="parametros")
 

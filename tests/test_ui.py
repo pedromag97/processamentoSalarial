@@ -129,12 +129,12 @@ def test_campo_obrigatorio_nao_pode_ficar_vazio(ui):
 
 def test_parametros_valores_por_preencher_e_edicao_de_decimais(ui):
     modelo = ModeloTabela(ui, ParametrosEmpresa, d.COLUNAS_PARAMETROS)
-    assert modelo.n_avisos() == 10  # 2 empresas × 5 valores vazios
+    assert modelo.n_avisos() == 12  # 2 empresas × 6 valores vazios
     assert ler(modelo, 0, "acrescimo_he_horas_seguintes") == "0,375"
     assert ler(modelo, 0, "subsidio_alimentacao_dia") == ""
 
     assert escrever(modelo, 0, "subsidio_alimentacao_dia", "6,5")
-    assert modelo.n_avisos() == 9
+    assert modelo.n_avisos() == 11
     ui.expire_all()
     assert modelo.linhas[0].subsidio_alimentacao_dia == Decimal("6.5")
 
@@ -145,7 +145,7 @@ def test_parametros_valores_por_preencher_e_edicao_de_decimais(ui):
 
     assert escrever(modelo, 0, "subsidio_alimentacao_dia", "")  # volta a ficar por preencher
     assert modelo.linhas[0].subsidio_alimentacao_dia is None
-    assert modelo.n_avisos() == 10
+    assert modelo.n_avisos() == 12
 
 
 def test_parametros_novos_trazem_os_valores_da_especificacao(ui):
@@ -216,7 +216,7 @@ def test_ecra_de_tabelas_tem_as_sete_tabelas(ui):
     ]
     parametros = ecra.vistas["Parâmetros por empresa"]
     assert not parametros.aviso.isHidden()
-    assert "10 valor(es) por preencher" in parametros.aviso.text()
+    assert "12 valor(es) por preencher" in parametros.aviso.text()
     assert ecra.vistas["Clientes"].aviso.isHidden()
     assert ecra.vistas["Feriados"].modelo.rowCount() == 26
 
@@ -337,6 +337,7 @@ def test_navegacao_da_janela_principal(app, fabrica):
     assert nomes == [
         "Presenças",
         "Lançamentos",
+        "Salários",
         "Fecho do mês",
         "Relatórios",
         "Trabalhadores",

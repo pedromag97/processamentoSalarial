@@ -9,6 +9,16 @@ from ..modelos import (
     AJUDA_CUSTO_ZONA,
     FERIADO_MUNICIPAL,
     FERIADO_NACIONAL,
+    FOLHA_BAIXA,
+    FOLHA_FALTA,
+    FOLHA_FERIAS,
+    FOLHA_NADA,
+    FOLHA_TRABALHO,
+    GER_MENSAL,
+    GER_QUANTIDADE_MANUAL,
+    GER_QUANTIDADE_PREVENCAO,
+    GER_SEMANAL,
+    GER_UNITARIO,
     PAIS_FRANCA,
     PAIS_PORTUGAL,
     Cliente,
@@ -25,6 +35,22 @@ AJUDAS_CUSTO = [
     (AJUDA_CUSTO_NAO, "Não"),
     (AJUDA_CUSTO_SIM, "Sim"),
     (AJUDA_CUSTO_ZONA, "Conforme a zona"),
+]
+CONTA_NA_FOLHA = [
+    (FOLHA_NADA, "Não conta"),
+    (FOLHA_TRABALHO, "Dia trabalhado"),
+    (FOLHA_FERIAS, "Férias"),
+    (FOLHA_BAIXA, "Baixa"),
+    (FOLHA_FALTA, "Falta"),
+]
+BASES_GER = [
+    (GER_UNITARIO, "Por unidade"),
+    (GER_MENSAL, "Do mês (÷ dias de trabalho)"),
+    (GER_SEMANAL, "Da semana (÷ 7)"),
+]
+QUANTIDADES_GER = [
+    (GER_QUANTIDADE_MANUAL, "Escreve-se em cada mês"),
+    (GER_QUANTIDADE_PREVENCAO, "Dias de prevenção da grelha"),
 ]
 
 
@@ -88,6 +114,14 @@ COLUNAS_CODIGO = [
     ),
     Coluna("desconta_salario", "Desconta salário base", BOOL),
     Coluna("soma_prevencao", "Soma prevenção", BOOL),
+    Coluna(
+        "conta_folha",
+        "Conta na folha de salário",
+        ESCOLHA,
+        escolhas=_fixas(CONTA_NA_FOLHA),
+        dica="Dia trabalhado e férias pagam-se; baixa e falta descontam um dia; "
+        "«Não conta» não paga nem desconta.",
+    ),
 ]
 
 COLUNAS_FERIADO = [
@@ -149,6 +183,13 @@ COLUNAS_PARAMETROS = [
         DECIMAL,
         dica="Vazio = sem alerta.",
     ),
+    Coluna(
+        "taxa_seguranca_social",
+        "Taxa de Segurança Social",
+        DECIMAL,
+        aviso_vazio=True,
+        dica="Em fração: 0,11 = 11%. A confirmar com o contabilista.",
+    ),
 ]
 
 
@@ -198,6 +239,41 @@ COLUNAS_EXCECOES = [
 COLUNAS_SALARIO = [
     Coluna("inicio_vigencia", "Em vigor desde", DATA, obrigatorio=True),
     Coluna("valor", "Salário base mensal (€)", DECIMAL, obrigatorio=True),
+    Coluna(
+        "duodecimo_ferias",
+        "Duodécimo de férias (€)",
+        DECIMAL,
+        dica="Valor do subsídio de férias pago em cada mês. Vazio = não recebe em duodécimos.",
+    ),
+    Coluna(
+        "duodecimo_natal",
+        "Duodécimo de Natal (€)",
+        DECIMAL,
+        dica="Valor do subsídio de Natal pago em cada mês. Vazio = não recebe em duodécimos.",
+    ),
+]
+
+COLUNAS_LINHA_GER = [
+    Coluna("ordem", "Ordem", INTEIRO, obrigatorio=True),
+    Coluna("nome", "Ajuda", obrigatorio=True),
+    Coluna("unidade", "Unidade", obrigatorio=True, dica="Por exemplo: dia, noite, hora."),
+    Coluna("valor", "Valor (€)", DECIMAL, aviso_vazio=True),
+    Coluna(
+        "base",
+        "O valor é",
+        ESCOLHA,
+        obrigatorio=True,
+        escolhas=_fixas(BASES_GER),
+        dica="«Do mês»: o valor divide-se pelos dias de trabalho do mês. «Da semana»: por 7.",
+    ),
+    Coluna(
+        "quantidade_de",
+        "Quantidade",
+        ESCOLHA,
+        obrigatorio=True,
+        escolhas=_fixas(QUANTIDADES_GER),
+    ),
+    Coluna("ativo", "Ativa", BOOL),
 ]
 
 
