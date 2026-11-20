@@ -18,7 +18,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .. import auditoria, bloqueios, contas
+from .. import auditoria, bloqueios, contas, salarios
 from ..modelos import (
     GER_QUANTIDADE_MANUAL,
     GER_UNITARIO,
@@ -130,8 +130,9 @@ class FichaTrabalhador(QDialog):
         disposicao_ger = QVBoxLayout(pagina_ger)
         ajuda_ger = QLabel(
             "Ajudas combinadas com este trabalhador (bloco GER da folha de salário). As "
-            "quantidades de cada mês escrevem-se no ecrã «Salários». As alterações nesta "
-            "tabela são gravadas de imediato."
+            "quantidades de cada mês escrevem-se no ecrã «Salários», ou contam-se da grelha "
+            "de presenças: na coluna «Quantidade» escolhe-se como (dias trabalhados, dias com "
+            "certos códigos, horas extra…). As alterações nesta tabela são gravadas de imediato."
         )
         ajuda_ger.setWordWrap(True)
         disposicao_ger.addWidget(ajuda_ger)
@@ -237,7 +238,7 @@ class FichaTrabalhador(QDialog):
         linha.quantidade_de = GER_QUANTIDADE_MANUAL
         linha.ativo = True
 
-    CAMPOS_GER = ("ordem", "nome", "unidade", "valor", "base", "quantidade_de", "ativo")
+    CAMPOS_GER = ("ordem", "nome", "unidade", "valor", "base", "quantidade_de", "codigos", "ativo")
 
     def _auditar_linha_ger(self, sessao: Session, linha: LinhaGer, acao: str) -> None:
         def descrever(valores) -> dict:
@@ -247,6 +248,8 @@ class FichaTrabalhador(QDialog):
             }
 
         with sessao.no_autoflush:
+            if acao != "apagar":
+                salarios.validar_linha_ger(sessao, linha)
             antigo = None
             if acao != "criar":
                 gravado = sessao.execute(

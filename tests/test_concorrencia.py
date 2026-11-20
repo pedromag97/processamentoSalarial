@@ -346,6 +346,6 @@ def test_varios_pcs_a_abrir_ao_mesmo_tempo_correm_as_migracoes_um_de_cada_vez(ur
     assert erros == []
     engine = db.criar_engine(url_pg)
     with engine.connect() as ligacao:
-        assert ligacao.scalar(text("SELECT version_num FROM alembic_version")) == "0005"
+        assert ligacao.scalar(text("SELECT version_num FROM alembic_version")) == "0006"
         assert ligacao.scalar(select(func.count()).select_from(Trabalhador)) == 0
     engine.dispose()

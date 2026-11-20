@@ -5,6 +5,7 @@ As contagens de dias vêm da grelha de presenças, pelo atributo «Conta na folh
 Os adiantamentos e restantes lançamentos manuais do mês entram depois do líquido.
 """
 
+import re
 from calendar import monthrange
 from collections import Counter
 from dataclasses import dataclass, field
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from . import auditoria, bloqueios, concorrencia
 from . import folha_salario as fs
+from .calculo import NIVEL_ERRO, Alerta
 from .consultas import parametros_em_vigor, salario_em_vigor
 from .modelos import (
     AJUDA_CUSTO_SIM,
@@ -25,12 +27,15 @@ from .modelos import (
     FOLHA_FERIAS,
     FOLHA_TRABALHO,
     GER_MENSAL,
+    GER_QUANTIDADE_CODIGOS,
     GER_QUANTIDADE_FRANCA,
+    GER_QUANTIDADE_HORAS,
     GER_QUANTIDADE_MANUAL,
     GER_QUANTIDADE_PREVENCAO,
     GER_QUANTIDADE_TRABALHO,
     GER_UNITARIO,
     PAIS_FRANCA,
+    CodigoPresenca,
     FolhaMes,
     LancamentoManual,
     LinhaGer,
@@ -72,6 +77,28 @@ def _em_franca(m: Marcacao) -> bool:
     return regra == AJUDA_CUSTO_SIM
 
 
+def codigos_da_linha(texto: str | None) -> list[str]:
+    """Os códigos escritos numa linha GER («pf, DF» -> ["PF", "DF"]), sem repetidos."""
+    codigos = []
+    for parte in re.split(r"[\s,;]+", (texto or "").upper()):
+        if parte and parte not in codigos:
+            codigos.append(parte)
+    return codigos
+
+
+def validar_linha_ger(sessao: Session, linha: LinhaGer) -> None:
+    """Arruma o texto dos códigos de uma linha GER e recusa códigos que não existem."""
+    codigos = codigos_da_linha(linha.codigos)
+    existentes = set(sessao.scalars(select(CodigoPresenca.codigo)))
+    desconhecidos = [c for c in codigos if c not in existentes]
+    if desconhecidos:
+        raise ValueError(
+            f"«{', '.join(desconhecidos)}» não existe nos códigos de presença. "
+            "Escreva os códigos separados por vírgulas, por exemplo: PF, DF."
+        )
+    linha.codigos = ", ".join(codigos) or None
+
+
 def folha_do_trabalhador(
     sessao: Session, trabalhador: Trabalhador, ano: int, mes: int
 ) -> FolhaTrabalhador:
@@ -96,7 +123,11 @@ def folha_do_trabalhador(
         GER_QUANTIDADE_PREVENCAO: sum(1 for m in marcacoes if m.codigo.soma_prevencao),
         GER_QUANTIDADE_TRABALHO: na_folha[FOLHA_TRABALHO],
         GER_QUANTIDADE_FRANCA: sum(1 for m in marcacoes if _em_franca(m)),
+        GER_QUANTIDADE_HORAS: sum((Decimal(m.horas_extra or 0) for m in marcacoes), ZERO),
     }
+    por_codigo = Counter(m.codigo.codigo for m in marcacoes)
+    existentes = set(sessao.scalars(select(CodigoPresenca.codigo)))
+    avisos_ger: list[Alerta] = []
 
     registo = sessao.scalar(
         select(FolhaMes).where(
@@ -124,6 +155,27 @@ def folha_do_trabalhador(
     for linha in linhas:
         if linha.quantidade_de in da_grelha:
             quantidade = Decimal(da_grelha[linha.quantidade_de])
+        elif linha.quantidade_de == GER_QUANTIDADE_CODIGOS:
+            codigos = codigos_da_linha(linha.codigos)
+            quantidade = Decimal(sum(por_codigo[c] for c in codigos))
+            em_falta = [c for c in codigos if c not in existentes]
+            if not codigos:
+                avisos_ger.append(
+                    Alerta(
+                        "ger_sem_codigos",
+                        NIVEL_ERRO,
+                        f"{linha.nome}: falta escrever na ficha os códigos de presença a contar.",
+                    )
+                )
+            elif em_falta:
+                avisos_ger.append(
+                    Alerta(
+                        "ger_codigo_desconhecido",
+                        NIVEL_ERRO,
+                        f"{linha.nome}: o código «{', '.join(em_falta)}» já não existe nos "
+                        "códigos de presença.",
+                    )
+                )
         else:
             quantidade = escritas.get(linha.id, ZERO)
         linhas_ger.append(
@@ -166,6 +218,7 @@ def folha_do_trabalhador(
             ),
         )
     )
+    folha.alertas.extend(avisos_ger)
     return FolhaTrabalhador(
         trabalhador_id=trabalhador.id,
         numero=trabalhador.numero,
@@ -174,7 +227,7 @@ def folha_do_trabalhador(
         mes=mes,
         folha=folha,
         contagens=dict(Counter(m.codigo.codigo for m in marcacoes)),
-        linhas_ger=[(linha.id, linha.quantidade_de not in da_grelha) for linha in linhas],
+        linhas_ger=[(linha.id, linha.quantidade_de == GER_QUANTIDADE_MANUAL) for linha in linhas],
         irs=irs,
     )
 

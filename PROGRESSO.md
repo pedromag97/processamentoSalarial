@@ -2,10 +2,17 @@
 
 ## Marco atual
 
+**Marco 15 feito, à espera de aprovação** (2026-11-20): as quantidades das linhas GER podem
+contar-se da grelha por códigos de presença escolhidos (noites de deslocação) e pelas horas
+extra (banco de horas). Traz a migração `0006`; ainda **não está instalada**. O Pedro não
+definiu o marco 15 («sem preferência»): este âmbito foi escolha minha, por ser o pendente
+mais próximo do Excel.
+
 **Marco 14 concluído** (2026-11-19): a folha de salário (do vencimento ao a pagar) está no
 ecrã «Salários», no «Fecho do mês», nos PDF e no Excel. À espera de o Pedro a comparar com a
-folha Excel de um trabalhador e aprovar. A versão com a migração `0005` (marco 13) está
-instalada no PC do Pedro desde 2026-11-19; a do marco 14 ainda não.
+folha Excel de um trabalhador e aprovar. A versão do marco 14 (migração `0005`), com as
+linhas GER habituais e a quantidade contada das presenças, está instalada no PC do Pedro
+desde 2026-11-19.
 
 Os sete marcos da especificação original estão feitos (versão 1.0.0). A 2026-11-18 o Pedro
 pediu contas de login e uma base de dados única do Grupo LSC, usada por várias pessoas ao
@@ -239,8 +246,18 @@ As regras foram lidas das fórmulas do Excel real (só leitura; nada copiado par
 - [x] Tabelas (2026-11-19): uma linha nova que ainda não está gravada passa a dizer a
       vermelho o que lhe falta (antes perdia-se sem aviso ao mudar de ecrã); a taxa de
       Segurança Social aceita «0,11» ou «11%» e recusa «11»
-- [ ] Noites de deslocação e banco de horas continuam a escrever-se à mão no mês; no Excel
-      contavam-se das colunas «d» e horas da folha de ponto
+- [x] Marco 15 (2026-11-20): migração `0006` (coluna `codigos` em `linha_ger`). Na ficha, em
+      «Ajudas (GER)», a «Quantidade» ganhou «Dias com os códigos indicados» (conta os dias da
+      grelha com os códigos da coluna nova «Códigos a contar», por exemplo «PF, DF») e
+      «Horas extra da grelha» (soma as horas escritas nos dias). Um código que não existe é
+      recusado ao escrever; linha por códigos sem códigos, ou com um código entretanto
+      apagado, dá erro na folha (`ger_sem_codigos`, `ger_codigo_desconhecido`)
+- [ ] As seis linhas habituais continuam a nascer com a quantidade «à mão»: é o Pedro que
+      escolhe, linha a linha, de onde vem. Não sei a regra exata do Excel para as noites
+      (coluna «d») nem para o banco de horas («sáb + horas»): se os sábados contarem como
+      horas fixas, falta essa conta — perguntar ao Pedro
+- [ ] A versão nova atualiza a base de dados do servidor para `0006`: atualizar todos os PCs
+      no mesmo dia
 - [ ] A versão não foi incrementada (continua 2.0.0)
 
 Regras da folha (decididas pelo Pedro; as marcadas com * são para o contabilista confirmar):

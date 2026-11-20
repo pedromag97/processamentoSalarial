@@ -168,6 +168,8 @@ GER_QUANTIDADE_MANUAL = "manual"  # escreve-se no ecrã «Salários»
 GER_QUANTIDADE_PREVENCAO = "prevencao"  # dias marcados na grelha com um código de prevenção
 GER_QUANTIDADE_TRABALHO = "trabalho"  # dias trabalhados (os mesmos da linha «Presenças»)
 GER_QUANTIDADE_FRANCA = "franca"  # dias trabalhados em França (códigos com ajuda de custo França)
+GER_QUANTIDADE_CODIGOS = "codigos"  # dias marcados com os códigos escritos na própria linha
+GER_QUANTIDADE_HORAS = "horas"  # soma das horas extra escritas na grelha
 
 
 class LinhaGer(Base):
@@ -183,6 +185,8 @@ class LinhaGer(Base):
     valor: Mapped[Decimal | None] = mapped_column(Valor)
     base: Mapped[str] = mapped_column(String(10), default=GER_UNITARIO)
     quantidade_de: Mapped[str] = mapped_column(String(10), default=GER_QUANTIDADE_MANUAL)
+    # Só para «codigos»: os códigos de presença a contar, separados por vírgulas («PF, DF»).
+    codigos: Mapped[str | None] = mapped_column(String(120))
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
 
     trabalhador: Mapped[Trabalhador] = relationship()

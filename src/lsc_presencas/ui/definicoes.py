@@ -15,7 +15,9 @@ from ..modelos import (
     FOLHA_NADA,
     FOLHA_TRABALHO,
     GER_MENSAL,
+    GER_QUANTIDADE_CODIGOS,
     GER_QUANTIDADE_FRANCA,
+    GER_QUANTIDADE_HORAS,
     GER_QUANTIDADE_MANUAL,
     GER_QUANTIDADE_PREVENCAO,
     GER_QUANTIDADE_TRABALHO,
@@ -55,6 +57,8 @@ QUANTIDADES_GER = [
     (GER_QUANTIDADE_TRABALHO, "Dias trabalhados da grelha"),
     (GER_QUANTIDADE_FRANCA, "Dias trabalhados em França da grelha"),
     (GER_QUANTIDADE_PREVENCAO, "Dias de prevenção da grelha"),
+    (GER_QUANTIDADE_CODIGOS, "Dias com os códigos indicados"),
+    (GER_QUANTIDADE_HORAS, "Horas extra da grelha"),
 ]
 
 
@@ -277,6 +281,19 @@ COLUNAS_LINHA_GER = [
         ESCOLHA,
         obrigatorio=True,
         escolhas=_fixas(QUANTIDADES_GER),
+        dica=(
+            "«Dias com os códigos indicados»: conta os dias da grelha marcados com os códigos "
+            "da coluna ao lado. «Horas extra da grelha»: soma as horas escritas nos dias "
+            "(por exemplo P+2)."
+        ),
+    ),
+    Coluna(
+        "codigos",
+        "Códigos a contar",
+        dica=(
+            "Só para «Dias com os códigos indicados»: os códigos de presença separados por "
+            "vírgulas, por exemplo PF, DF."
+        ),
     ),
     Coluna("ativo", "Ativa", BOOL),
 ]

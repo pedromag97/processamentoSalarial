@@ -320,3 +320,55 @@ def test_quantidade_ger_contada_das_presencas(bd, ana):
     assert [manual for _, manual in f.linhas_ger] == [False, False]
     with pytest.raises(ValueError, match="grelha de presenças"):
         salarios.gravar_quantidade(bd, todos.id, ANO, MES, D("9"))
+
+
+def test_quantidade_ger_contada_por_codigos(bd, ana):
+    marcar(bd, ana, {2: "P", 3: "PF", 4: "PF", 5: "PR", 7: "DF", 8: "DF", 9: "FI"})
+    noites = linha_ger(
+        bd, ana, "Desloq", "noite", D("15"), quantidade_de="codigos", codigos="pf;  df,PF", ordem=1
+    )
+    f = salarios.folha_do_trabalhador(bd, ana, ANO, MES)
+    assert [(x.descricao, x.quantidade, x.total) for x in f.folha.linhas_ger] == [
+        ("Desloq", D("4"), D("60.00"))  # dois PF e dois DF; o PF repetido conta uma vez
+    ]
+    assert [manual for _, manual in f.linhas_ger] == [False]
+    assert not {"ger_sem_codigos", "ger_codigo_desconhecido"} & f.folha.chaves_de_alerta()
+    with pytest.raises(ValueError, match="grelha de presenças"):
+        salarios.gravar_quantidade(bd, noites.id, ANO, MES, D("9"))
+
+
+def test_linha_por_codigos_sem_codigos_ou_com_codigo_apagado_avisa(bd, ana):
+    marcar(bd, ana, {2: "PF"})
+    linha = linha_ger(bd, ana, "Desloq", "noite", D("15"), quantidade_de="codigos")
+    f = salarios.folha_do_trabalhador(bd, ana, ANO, MES)
+    assert f.folha.linhas_ger[0].quantidade == 0
+    assert "ger_sem_codigos" in f.folha.chaves_de_alerta()
+    linha.codigos = "PF, XX"
+    bd.commit()
+    f = salarios.folha_do_trabalhador(bd, ana, ANO, MES)
+    assert f.folha.linhas_ger[0].quantidade == 1
+    assert "ger_codigo_desconhecido" in f.folha.chaves_de_alerta()
+
+
+def test_validar_linha_ger_arruma_e_recusa_codigos_que_nao_existem(bd, ana):
+    linha = linha_ger(bd, ana, "Desloq", "noite", D("15"), quantidade_de="codigos")
+    linha.codigos = " pf ;df "
+    salarios.validar_linha_ger(bd, linha)
+    assert linha.codigos == "PF, DF"
+    linha.codigos = "PF, ZZ"
+    with pytest.raises(ValueError, match="«ZZ» não existe"):
+        salarios.validar_linha_ger(bd, linha)
+    linha.codigos = "  "
+    salarios.validar_linha_ger(bd, linha)
+    assert linha.codigos is None
+
+
+def test_quantidade_ger_das_horas_extra_da_grelha(bd, ana):
+    marcar(bd, ana, {2: "P", 3: "P", 7: "P"})
+    for m in bd.scalars(select(Marcacao)):
+        m.horas_extra = {2: D("2"), 3: D("0"), 7: D("5.5")}[m.data.day]
+    bd.commit()
+    linha_ger(bd, ana, "Banco de horas", "hora", D("8.125"), quantidade_de="horas")
+    f = salarios.folha_do_trabalhador(bd, ana, ANO, MES)
+    assert [(x.quantidade, x.total) for x in f.folha.linhas_ger] == [(D("7.5"), D("60.94"))]
+    assert [manual for _, manual in f.linhas_ger] == [False]
